@@ -6,44 +6,52 @@ import {
   clearRelayerSession,
   createChallenge,
   readStoredRelayerSession,
+  RelayerRequestError,
   storeRelayerSession,
   verifyChallenge,
   type StoredRelayerSession,
 } from "@/lib/relayer";
 
 export function useRelayerSession() {
-  const { address, isConnected } = useAccount();
+  const { address } = useAccount();
   const { signMessageAsync } = useSignMessage();
   const [session, setSession] = useState<StoredRelayerSession | null>(null);
   const [isAuthenticating, setIsAuthenticating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    setSession(readStoredRelayerSession());
-  }, []);
-
-  useEffect(() => {
-    if (!isConnected) {
+    const stored = readStoredRelayerSession();
+    if (address && stored?.address.toLowerCase() === address.toLowerCase()) {
+      setSession(stored);
+    } else {
       setSession(null);
+    }
+    if (address && stored && stored.address.toLowerCase() !== address.toLowerCase()) {
       clearRelayerSession();
     }
-  }, [isConnected]);
+  }, [address]);
 
-  const authenticate = useCallback(async (): Promise<string> => {
+  const authenticate = useCallback(async (force = false): Promise<string> => {
     if (!address) throw new Error("Connect a wallet before starting a real day.");
-    const stored = readStoredRelayerSession();
-    if (stored) {
+    if (force) {
+      clearRelayerSession();
+      setSession(null);
+    }
+    const stored = force ? null : readStoredRelayerSession();
+    if (stored?.address.toLowerCase() === address.toLowerCase()) {
       setSession(stored);
       return stored.accessToken;
     }
+    if (stored) clearRelayerSession();
     setError(null);
     setIsAuthenticating(true);
     try {
       const challenge = await createChallenge(address);
       const signature = await signMessageAsync({ message: challenge.message });
       const verified = await verifyChallenge(address, challenge.message, signature);
-      storeRelayerSession(verified);
-      setSession(verified);
+      const renewed = { ...verified, address };
+      storeRelayerSession(renewed);
+      setSession(renewed);
       return verified.accessToken;
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : "Wallet authorization was not completed.";
@@ -55,10 +63,22 @@ export function useRelayerSession() {
     }
   }, [address, signMessageAsync]);
 
+  const withSession = useCallback(async <T,>(operation: (token: string) => Promise<T>): Promise<T> => {
+    const token = await authenticate();
+    try {
+      return await operation(token);
+    } catch (cause) {
+      if (!(cause instanceof RelayerRequestError) || cause.status !== 401) throw cause;
+      // Relayer sessions are in memory; a service restart invalidates the browser's stored token.
+      const renewedToken = await authenticate(true);
+      return operation(renewedToken);
+    }
+  }, [authenticate]);
+
   const logout = useCallback(() => {
     clearRelayerSession();
     setSession(null);
   }, []);
 
-  return { address, session, isAuthenticating, error, authenticate, logout };
+  return { address, session, isAuthenticating, error, authenticate, withSession, logout };
 }

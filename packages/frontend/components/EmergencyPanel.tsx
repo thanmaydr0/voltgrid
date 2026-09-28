@@ -70,8 +70,8 @@ export function EmergencyPanel({
         </div>
       </div>
       <div className="metric-strip emergency-metrics">
-        <div><span>{receiptTargetWh !== undefined ? "Receipt target" : "Modelled target preview"}</span><strong>{shownTargetWh.toLocaleString()} Wh</strong></div>
-        <div><span>Confirmed shaved</span><strong>{confirmed ? `${(outcome?.metrics?.shavedWh ?? 0).toLocaleString()} Wh` : "Not confirmed"}</strong></div>
+        <div><span>{receiptTargetWh !== undefined ? "Receipt target" : "Modelled target preview"}</span><strong>{shownTargetWh.toLocaleString("en-IN")} Wh</strong></div>
+        <div><span>Confirmed shaved</span><strong>{confirmed ? `${(outcome?.metrics?.shavedWh ?? 0).toLocaleString("en-IN")} Wh` : "Not confirmed"}</strong></div>
         <div><span>Confirmed payout</span><strong>{confirmed ? formatVlt(outcome?.metrics?.payoutWei) : "Not confirmed"}</strong></div>
       </div>
       {confirmed && outcome.metrics?.tariffMicroVltPerKwh !== undefined && <p className="card-copy">Receipt tariff: {(outcome.metrics.tariffMicroVltPerKwh / 1_000_000).toFixed(3)} model VLT/kWh · bounded demo assumption.</p>}
@@ -80,7 +80,7 @@ export function EmergencyPanel({
         <strong>Confirmed battery discharge events</strong>
         <ul>
           {discharges.map((item, index) => <li key={`${item.house}-${index}`}>
-            <span><code>{item.house.slice(0, 8)}…{item.house.slice(-6)}</code> · {item.deliveredWh.toLocaleString()} Wh · {formatVlt(item.payoutWei)}</span>
+            <span><code>{item.house.slice(0, 8)}…{item.house.slice(-6)}</code> · {item.deliveredWh.toLocaleString("en-IN")} Wh · {formatVlt(item.payoutWei)}</span>
             {actions.find((action) => action.action === "reportDischarge")?.txHash && <a href={`${explorerUrl}/tx/${actions.find((action) => action.action === "reportDischarge")!.txHash}`} target="_blank" rel="noreferrer">Report receipt</a>}
           </li>)}
         </ul>
@@ -95,7 +95,7 @@ export function EmergencyPanel({
         <span>Preview-only software estimate; no physical battery, utility dispatch, or Neurick-board battery connection. Confirmed dispatch is listed only from receipt events above.</span>
         {batteryState.length > 0 ? <ul>{batteryState.map((battery) => <li key={battery.house}>
           <code>{battery.house.slice(0, 8)}…{battery.house.slice(-6)}</code>
-          <span>{battery.availableWh.toLocaleString()} / {battery.capacityWh.toLocaleString()} Wh modelled available · {battery.eligibleEmergencyDischargeWh.toLocaleString()} Wh eligible</span>
+          <span>{battery.availableWh.toLocaleString("en-IN")} / {battery.capacityWh.toLocaleString("en-IN")} Wh modelled available · {battery.eligibleEmergencyDischargeWh.toLocaleString("en-IN")} Wh eligible</span>
         </li>)}</ul> : <small>No simulated battery capacity is present in this preview.</small>}
       </div>
       <p className="assumption">Opt in using the connected house’s wallet signature before starting a day. The demo snapshots opt-in at day start; no real utility dispatch is claimed.</p>

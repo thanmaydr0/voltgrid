@@ -77,7 +77,7 @@ function statusMessage(run: PersistedRun | null, busy: boolean, error: string | 
 
 export default function Home() {
   const { address, chainId } = useAccount();
-  const { session, isAuthenticating, authenticate, error: authError } = useRelayerSession();
+  const { session, isAuthenticating, withSession, error: authError } = useRelayerSession();
   const [scenario, setScenario] = useState<Scenario>("sunny");
   const [seed, setSeed] = useState("demo-seed");
   const [hour, setHour] = useState(7);
@@ -164,10 +164,9 @@ export default function Home() {
     }
     setLiveBusy(true);
     try {
-      const token = await authenticate();
-      const current = await reconcileCurrent(token, address);
+      const current = await withSession((token) => reconcileCurrent(token, address));
       if (current && current.status === "starting") {
-        const retried = await createDay({ clientRunId: current.clientRunId, scenario: current.scenario, seed: current.seed, viewerEvCharging: current.viewerEvCharging }, token);
+        const retried = await withSession((token) => createDay({ clientRunId: current.clientRunId, scenario: current.scenario, seed: current.seed, viewerEvCharging: current.viewerEvCharging }, token));
         if (retried.status === "confirmed") {
           persist({ ...current, status: "active" });
           setLivePlaying(true);
@@ -181,12 +180,12 @@ export default function Home() {
         return;
       }
       const clientRunId = requestId();
-      const created = await createDay({ clientRunId, scenario, seed, viewerEvCharging }, token);
+      const created = await withSession((token) => createDay({ clientRunId, scenario, seed, viewerEvCharging }, token));
       if (created.status !== "confirmed") {
         setLiveError("Day start is not confirmed yet. Press Play real day again to reconcile it; no epoch was submitted.");
         return;
       }
-      const startedDay = await getDay(created.dayId, token);
+      const startedDay = await withSession((token) => getDay(created.dayId, token));
       const started: PersistedRun = {
         dayId: created.dayId,
         ownerAddress: address,
@@ -208,10 +207,10 @@ export default function Home() {
     } finally {
       setLiveBusy(false);
     }
-  }, [address, authenticate, chainId, persist, reconcileCurrent, scenario, seed, viewerEvCharging]);
+  }, [address, chainId, persist, reconcileCurrent, scenario, seed, viewerEvCharging, withSession]);
 
   const advanceOne = useCallback(async () => {
-    if (!run || run.status !== "active" || run.nextEpoch >= 24 || !session?.accessToken || processing.current) return;
+    if (!run || !address || run.status !== "active" || run.nextEpoch >= 24 || processing.current) return;
     processing.current = true;
     setLiveBusy(true);
     setLiveError(null);
@@ -220,7 +219,7 @@ export default function Home() {
     const withRequest = run.requests[String(epoch)] ? run : { ...run, requests: { ...run.requests, [String(epoch)]: clientRequestId } };
     if (withRequest !== run) persist(withRequest);
     try {
-      const result = await advanceEpoch(run.dayId, epoch, clientRequestId, session.accessToken);
+      const result = await withSession((token) => advanceEpoch(run.dayId, epoch, clientRequestId, token));
       const updated: PersistedRun = {
         ...withRequest,
         nextEpoch: result.status === "confirmed" ? Math.max(withRequest.nextEpoch, epoch + 1) : withRequest.nextEpoch,
@@ -238,7 +237,7 @@ export default function Home() {
       processing.current = false;
       setLiveBusy(false);
     }
-  }, [persist, run, session?.accessToken]);
+  }, [address, persist, run, withSession]);
 
   useEffect(() => {
     if (!livePlaying || !run || run.status !== "active") return;
@@ -250,14 +249,14 @@ export default function Home() {
   }, [advanceOne, livePlaying, run]);
 
   const closeCompletedDay = useCallback(async () => {
-    if (!run || run.nextEpoch !== 24 || !session?.accessToken) return;
+    if (!run || !address || run.nextEpoch !== 24) return;
     setLiveBusy(true);
     setLiveError(null);
     const id = run.closeRequestId ?? requestId();
     const withRequest = run.closeRequestId ? run : { ...run, closeRequestId: id };
     if (withRequest !== run) persist(withRequest);
     try {
-      const result = await closeDay(run.dayId, id, session.accessToken);
+      const result = await withSession((token) => closeDay(run.dayId, id, token));
       if (result.status === "confirmed") {
         const closedRun = { ...withRequest, status: "closed" as const, closeAction: result.closeAction };
         persist(closedRun);
@@ -270,7 +269,7 @@ export default function Home() {
     } finally {
       setLiveBusy(false);
     }
-  }, [persist, run, session?.accessToken]);
+  }, [address, persist, run, withSession]);
 
   async function retryOrStart() {
     if (run && run.status === "active") {

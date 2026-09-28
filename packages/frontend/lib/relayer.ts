@@ -91,7 +91,14 @@ export type ApiEnvelope = Readonly<{
   modelVersion: 1;
 }>;
 
-export type StoredRelayerSession = Readonly<{ accessToken: string; expiresAt: number }>;
+export type StoredRelayerSession = Readonly<{ address: string; accessToken: string; expiresAt: number }>;
+
+export class RelayerRequestError extends Error {
+  constructor(readonly status: number, readonly code: string | undefined, message: string) {
+    super(message);
+    this.name = "RelayerRequestError";
+  }
+}
 
 const SESSION_KEY = "voltgrid:relayer-session";
 const DEFAULT_BASE = "/api/relayer";
@@ -100,7 +107,7 @@ export function readStoredRelayerSession(): StoredRelayerSession | null {
   if (typeof window === "undefined") return null;
   try {
     const parsed = JSON.parse(window.sessionStorage.getItem(SESSION_KEY) ?? "null") as StoredRelayerSession | null;
-    if (!parsed?.accessToken || !Number.isSafeInteger(parsed.expiresAt) || parsed.expiresAt <= Date.now()) {
+    if (!parsed?.accessToken || !/^0x[0-9a-fA-F]{40}$/.test(parsed.address) || !Number.isSafeInteger(parsed.expiresAt) || parsed.expiresAt <= Date.now()) {
       window.sessionStorage.removeItem(SESSION_KEY);
       return null;
     }
@@ -138,7 +145,7 @@ export async function relayerRequest<T>(path: string, options: RequestInit = {},
   const body = await parseResponse(response);
   if (!response.ok) {
     const error = body as { message?: string; code?: string; retryable?: boolean };
-    throw new Error(`${error?.code ? `${error.code}: ` : ""}${error?.message || `relayer request failed (${response.status})`}`);
+    throw new RelayerRequestError(response.status, error?.code, `${error?.code ? `${error.code}: ` : ""}${error?.message || `relayer request failed (${response.status})`}`);
   }
   return body as T;
 }
@@ -147,7 +154,7 @@ export async function createChallenge(address: string): Promise<{ message: strin
   return relayerRequest("/v1/auth/challenge", { method: "POST", body: JSON.stringify({ address }) });
 }
 
-export async function verifyChallenge(address: string, message: string, signature: string): Promise<StoredRelayerSession> {
+export async function verifyChallenge(address: string, message: string, signature: string): Promise<Pick<StoredRelayerSession, "accessToken" | "expiresAt">> {
   return relayerRequest("/v1/auth/verify", { method: "POST", body: JSON.stringify({ address, message, signature }) });
 }
 

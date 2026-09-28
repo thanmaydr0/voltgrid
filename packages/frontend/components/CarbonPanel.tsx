@@ -143,7 +143,7 @@ function CertificateCard({ record }: { record: CarbonCertificate }) {
       </div>
       {svg && <Image className="certificate-image" src={svg} alt={`On-chain illustrative record ${record.tokenId}, ${record.eligibleWh} eligible watt-hours`} width={600} height={360} unoptimized />}
       <dl className="certificate-values">
-        <div><dt>Assigned eligible allocation</dt><dd>{record.eligibleWh.toLocaleString()} Wh</dd></div>
+        <div><dt>Assigned eligible allocation</dt><dd>{record.eligibleWh.toLocaleString("en-IN")} Wh</dd></div>
         <div><dt>Model factor / version</dt><dd>{record.factorGPerKwh} gCO₂e/kWh · v{record.factorVersion}</dd></div>
         <div><dt>Illustrative formula</dt><dd>{record.eligibleWh} × {record.factorGPerKwh} = {record.avoidedMgCo2e} mgCO₂e</dd></div>
       </dl>
@@ -203,7 +203,7 @@ export function CarbonPanel({ run }: { run: CarbonRun | null }) {
       {run && <p className="certificate-note">Day {run.dayId} · {run.scenario} · seed <code>{run.seed}</code> · simulation model v1</p>}
       {confirmed && metrics ? (
         <>
-          <div className="carbon-preview"><div><strong>{metrics.totalEligibleWh.toLocaleString()} eligible seller Wh</strong><span>{metrics.certificates.length} non-overlapping seller record(s) · factor {metrics.factorGPerKwh} gCO₂e/kWh v{metrics.factorVersion}</span><small>Receipt-confirmed close. No buyer-side duplication.</small></div></div>
+          <div className="carbon-preview"><div><strong>{metrics.totalEligibleWh.toLocaleString("en-IN")} eligible seller Wh</strong><span>{metrics.certificates.length} non-overlapping seller record(s) · factor {metrics.factorGPerKwh} gCO₂e/kWh v{metrics.factorVersion}</span><small>Receipt-confirmed close. No buyer-side duplication.</small></div></div>
           {metrics.certificates.length === 0
             ? <p className="certificate-note">This confirmed day had zero eligible solar P2P allocation; no certificate was minted.</p>
             : <div className="carbon-gallery">{metrics.certificates.map((record) => <CertificateCard key={record.tokenId} record={record} />)}</div>}
@@ -214,8 +214,8 @@ export function CarbonPanel({ run }: { run: CarbonRun | null }) {
             <div className="carbon-readings-scroll"><table><thead><tr><th>Hour</th><th>Model generation</th><th>Model consumption</th><th>Stress</th><th>Confirmed outcome</th><th>Per-house readings</th></tr></thead><tbody>
               {replay.map(({ output, outcome }) => <tr key={output.epochIndex}>
                 <td>{String(output.epochIndex).padStart(2, "0")}</td>
-                <td>{output.totalGenerationWh.toLocaleString()} Wh</td>
-                <td>{output.totalConsumptionWh.toLocaleString()} Wh</td>
+                <td>{output.totalGenerationWh.toLocaleString("en-IN")} Wh</td>
+                <td>{output.totalConsumptionWh.toLocaleString("en-IN")} Wh</td>
                 <td>{(output.stressBps / 100).toFixed(1)}%</td>
                 <td>{outcome?.status === "confirmed" ? outcome.kind === "normal" ? `${outcome.metrics?.matchedWh ?? 0} matched Wh` : `${outcome.metrics?.shavedWh ?? 0} emergency Wh` : "not confirmed"}</td>
                 <td><details><summary>{output.readings.length} readings</summary><ul>{output.readings.map((reading) => <li key={reading.house}>{reading.house}: {reading.generationWh} generation / {reading.consumptionWh} consumption Wh</li>)}</ul></details></td>

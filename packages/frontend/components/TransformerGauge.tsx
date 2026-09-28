@@ -29,8 +29,8 @@ export function TransformerGauge({ load, capacity }: { load: number; capacity: n
       <div className="gauge-track"><span className={tone} style={{ width: `${safePercent}%` }} /></div>
       <div className="gauge-scale"><span>0%</span><span>80% watch</span><span>95% emergency proposal</span><span>100%</span></div>
       <div className="gauge-stats">
-        <div><span>Load</span><strong>{load.toLocaleString()} Wh</strong></div>
-        <div><span>Capacity</span><strong>{capacity.toLocaleString()} Wh</strong></div>
+        <div><span>Load</span><strong>{load.toLocaleString("en-IN")} Wh</strong></div>
+        <div><span>Capacity</span><strong>{capacity.toLocaleString("en-IN")} Wh</strong></div>
       </div>
       <p className="assumption">Modelled assumption: transformer capacity and stress are fixture parameters, not telemetry.</p>
     </section>
