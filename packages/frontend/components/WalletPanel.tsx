@@ -77,10 +77,18 @@ export function WalletPanel() {
     chainId: mstTestnet.id,
     query: { enabled },
   });
+  const treasury = useReadContract({
+    address: marketAddress,
+    abi: VOLT_GRID_MARKET_ABI,
+    functionName: "treasury",
+    chainId: mstTestnet.id,
+    query: { enabled },
+  });
   const registered = Array.isArray(house.data) ? Boolean(house.data[0]) : false;
   const hasBattery = Array.isArray(house.data) ? Boolean(house.data[2]) : false;
   const batteryOptedIn = Array.isArray(house.data) ? Boolean(house.data[4]) : false;
   const dayActive = Array.isArray(currentDay.data) ? Boolean(currentDay.data[0]) : false;
+  const isTreasuryWallet = Boolean(address && treasury.data && address.toLowerCase() === treasury.data.toLowerCase());
   const amountWei = useMemo(() => {
     try {
       if (!amount || Number(amount) <= 0) return undefined;
@@ -98,7 +106,7 @@ export function WalletPanel() {
       const hash = await action();
       setLastHash(hash);
       if (publicClient) await publicClient.waitForTransactionReceipt({ hash });
-      await Promise.all([tokenBalance.refetch(), internalBalance.refetch(), allowance.refetch(), house.refetch(), currentDay.refetch()]);
+      await Promise.all([tokenBalance.refetch(), internalBalance.refetch(), allowance.refetch(), house.refetch(), currentDay.refetch(), treasury.refetch()]);
     } catch (err) {
       setError(friendlyError(err));
     } finally {
@@ -164,11 +172,13 @@ export function WalletPanel() {
       <div className="wallet-amount"><label htmlFor="vlt-amount">VLT amount</label><input id="vlt-amount" inputMode="decimal" value={amount} onChange={(event) => setAmount(event.target.value)} disabled={!enabled || Boolean(busyLabel)} /></div>
       <div className="wallet-capabilities">
         <button className="button button-primary" disabled={!enabled || Boolean(busyLabel)} onClick={claimFaucet}>Claim VLT faucet</button>
-        <button className="button" disabled={!enabled || registered || Boolean(busyLabel)} onClick={registerHouse}>{registered ? "House registered" : "Register my house"}</button>
+        <button className="button" disabled={!enabled || registered || isTreasuryWallet || treasury.isPending || treasury.isError || Boolean(busyLabel)} onClick={registerHouse}>{registered ? "House registered" : isTreasuryWallet ? "Treasury cannot register as a house" : "Register my house"}</button>
         <button className="button" disabled={!enabled || !registered || !amountWei || Boolean(busyLabel)} onClick={approveAndDeposit}>Approve & deposit VLT</button>
         <button className="button" disabled={!enabled || !registered || !amountWei || Boolean(busyLabel)} onClick={withdraw}>Withdraw VLT</button>
         <button className="button" disabled={!enabled || !registered || !hasBattery || dayActive || Boolean(busyLabel)} onClick={setOptIn}>{!hasBattery ? "No simulated battery registered" : batteryOptedIn ? "Opt out battery" : "Opt in battery dispatch"}</button>
       </div>
+      {isTreasuryWallet && <p className="wallet-detail" role="status">This wallet is the market treasury. The contract blocks the treasury account from registering as a household. Connect a different wallet to register a house.</p>}
+      {enabled && treasury.isError && <p className="inline-error" role="alert">Could not verify the market treasury address. House registration is disabled until the chain read succeeds.</p>}
       {registered && hasBattery && <p className="wallet-detail" role="status">Battery dispatch consent is a wallet-signed simulated-model opt-in. {dayActive ? "The active day has snapshotted opt-in; changes unlock after it closes." : "Set or withdraw consent before starting a day."}</p>}
       {busyLabel && <p className="action-note" role="status">{busyLabel}</p>}
       {error && <p className="inline-error" role="alert">{error}</p>}
