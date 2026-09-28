@@ -8,6 +8,7 @@
   "scripts": {
     "dev": "turbo run dev",
     "build": "turbo run build",
+    "start": "npm run start --workspace=voltgrid-relayer",
     "test": "turbo run test",
     "compile": "turbo run compile",
     "lint": "turbo run lint",
