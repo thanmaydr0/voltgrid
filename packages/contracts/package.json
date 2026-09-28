@@ -6,15 +6,23 @@
     "dev": "hardhat node",
     "compile": "hardhat compile",
     "test": "hardhat test",
-    "lint": "solhint 'contracts/**/*.sol'",
-    "deploy:testnet": "hardhat run scripts/deploy.ts --network testnet",
-    "deploy:mainnet": "hardhat run scripts/deploy.ts --network mainnet",
-    "verify:testnet": "hardhat run scripts/verify.ts --network testnet",
-    "verify:mainnet": "hardhat run scripts/verify.ts --network mainnet",
+    "lint": "solhint \"contracts/**/*.sol\"",
+    "preflight:testnet": "hardhat run scripts/preflight-testnet.ts --network testnet",
+    "deploy:testnet": "hardhat run scripts/deploy-testnet.ts --network testnet",
+    "roles:testnet": "hardhat run scripts/grant-roles-testnet.ts --network testnet",
+    "seed:testnet": "hardhat run scripts/seed-testnet.ts --network testnet",
+    "lockdown:testnet": "hardhat run scripts/lockdown-testnet.ts --network testnet",
+    "verify:testnet": "hardhat run scripts/verify-testnet.ts --network testnet",
+    "verify:source:testnet": "hardhat run scripts/verify-source-testnet.ts --network testnet",
+    "smoke:testnet": "hardhat run scripts/smoke-testnet.ts --network testnet",
+    "deploy:local": "hardhat run scripts/deploy-local.ts --network localhost",
+    "seed:local": "hardhat run scripts/seed.ts --network localhost",
+    "smoke:local": "hardhat run scripts/smoke-tx.ts --network localhost",
     "clean": "hardhat clean"
   },
   "dependencies": {
-    "@openzeppelin/contracts": "~5.0.2"
+    "@openzeppelin/contracts": "~5.0.2",
+    "voltgrid-sim-core": "*"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-toolbox": "^5.0.0",

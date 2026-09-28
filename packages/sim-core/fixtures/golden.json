@@ -1,0 +1,42 @@
+{
+  "modelVersion": 1,
+  "description": "Small stable summaries for manual review and regression checks.",
+  "cases": [
+    {
+      "scenario": "sunny",
+      "seed": "golden-seed",
+      "epochIndex": 12,
+      "expected": {
+        "totalGenerationWh": 18104,
+        "totalConsumptionWh": 8034,
+        "stressBps": 8034,
+        "emergencyProposed": false,
+        "previewPriceMicroVltPerKwh": 3000000
+      }
+    },
+    {
+      "scenario": "rainy",
+      "seed": "golden-seed",
+      "epochIndex": 12,
+      "expected": {
+        "totalGenerationWh": 5604,
+        "totalConsumptionWh": 8678,
+        "stressBps": 8678,
+        "emergencyProposed": false,
+        "previewPriceMicroVltPerKwh": 7000000
+      }
+    },
+    {
+      "scenario": "heatwave",
+      "seed": "golden-seed",
+      "epochIndex": 19,
+      "expected": {
+        "totalGenerationWh": 0,
+        "totalConsumptionWh": 18775,
+        "stressBps": 18775,
+        "emergencyProposed": true,
+        "previewPriceMicroVltPerKwh": null
+      }
+    }
+  ]
+}

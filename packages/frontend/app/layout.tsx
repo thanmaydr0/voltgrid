@@ -3,8 +3,8 @@ import { Providers } from "./providers";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "voltgrid",
-  description: "Built with create-mst-app",
+  title: "VoltGrid | MST Testnet neighbourhood energy",
+  description: "A transparent VoltGrid dashboard shell for simulated neighbourhood energy settlement.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

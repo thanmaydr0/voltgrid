@@ -1,42 +1,60 @@
 import { NextRequest, NextResponse } from "next/server";
 
-/**
- * Same-origin proxy for MST JSON-RPC calls.
- *
- * The MST Testnet RPC (testnetrpc.mstblockchain.com) doesn't send
- * Access-Control-Allow-Origin headers, so a browser calling it directly via
- * fetch — which is what wagmi's public client does for every contract read
- * — gets blocked by CORS before the request even reaches it (MST Mainnet's
- * RPC does set these headers correctly; this is a testnet-only gap).
- * Wallet-signed writes are unaffected since those go through the wallet
- * extension's own provider, not a page-level fetch.
- *
- * Routing reads through this same-origin Next.js route handler sidesteps
- * the problem: the browser only ever talks to same-origin /api/rpc/*, and
- * this server-side handler — not bound by CORS — forwards to the real RPC.
- */
-const RPC_URLS: Record<string, string> = {
-  testnet: "https://testnetrpc.mstblockchain.com",
-  mainnet: "https://mariorpc.mstblockchain.com",
-};
+const TESTNET_RPC_URL = "https://testnetrpc.mstblockchain.com";
+const MAX_BODY_BYTES = 64 * 1024;
+const ALLOWED_METHODS = new Set([
+  "eth_chainId",
+  "eth_blockNumber",
+  "eth_call",
+  "eth_getBalance",
+  "eth_getCode",
+  "eth_getLogs",
+  "eth_getTransactionByHash",
+  "eth_getTransactionReceipt",
+  "net_version",
+]);
 
+function rpcError(message: string, status: number) {
+  return NextResponse.json({ jsonrpc: "2.0", error: { code: -32600, message } }, { status });
+}
+
+/**
+ * Bounded, testnet-only read proxy. Wallet-signed writes still go through the
+ * user's EIP-1193 provider and never pass through this route.
+ */
 export async function POST(request: NextRequest, { params }: { params: { network: string } }) {
-  const target = RPC_URLS[params.network];
-  if (!target) {
-    return NextResponse.json({ error: `Unknown network "${params.network}"` }, { status: 400 });
-  }
+  if (params.network !== "testnet") return rpcError("Only MST Testnet reads are available.", 404);
+
+  const contentLength = Number(request.headers.get("content-length") ?? 0);
+  if (contentLength > MAX_BODY_BYTES) return rpcError("RPC request is too large.", 413);
 
   const body = await request.text();
+  if (new TextEncoder().encode(body).byteLength > MAX_BODY_BYTES) return rpcError("RPC request is too large.", 413);
 
-  const upstream = await fetch(target, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body,
-  });
+  let payload: { method?: string; jsonrpc?: string; id?: string | number | null };
+  try {
+    payload = JSON.parse(body) as typeof payload;
+  } catch {
+    return rpcError("RPC request must be valid JSON.", 400);
+  }
 
-  const data = await upstream.text();
-  return new NextResponse(data, {
-    status: upstream.status,
-    headers: { "Content-Type": "application/json" },
-  });
+  if (!payload || Array.isArray(payload) || !payload.method || !ALLOWED_METHODS.has(payload.method)) {
+    return rpcError("RPC method is not allowed by the frontend read proxy.", 403);
+  }
+
+  try {
+    const upstream = await fetch(TESTNET_RPC_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body,
+      cache: "no-store",
+    });
+    const data = await upstream.text();
+    return new NextResponse(data, {
+      status: upstream.status,
+      headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
+    });
+  } catch {
+    return rpcError("MST Testnet RPC is unavailable.", 502);
+  }
 }

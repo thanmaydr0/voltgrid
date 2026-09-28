@@ -1,0 +1,27 @@
+{
+  "name": "voltgrid-relayer",
+  "version": "0.1.0",
+  "private": true,
+  "type": "commonjs",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "dev": "ts-node src/server.ts",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/server.js",
+    "typecheck": "tsc --noEmit -p tsconfig.test.json",
+    "test": "node --require ts-node/register --test --test-concurrency=1 test/**/*.test.ts",
+    "test:local": "node --require ts-node/register --test test/local.integration.test.ts"
+  },
+  "dependencies": {
+    "ethers": "^6.17.0",
+    "express": "^4.21.1",
+    "voltgrid-sim-core": "*"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.0",
+    "@types/node": "^20.16.10",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.5.4"
+  }
+}

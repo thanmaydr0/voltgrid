@@ -9,6 +9,11 @@ cache/
 typechain-types/
 coverage/
 coverage.json
+packages/contracts/deployments/testnet.pending.json
+packages/contracts/deployments/testnet-tx.pending.json
+packages/contracts/deployments/testnet-admin.lock
+packages/contracts/deployments/testnet-seed.plan.json
+packages/contracts/deployments/testnet-smoke.plan.json
 
 # next.js
 .next/

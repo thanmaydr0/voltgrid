@@ -1,11 +1,11 @@
 import { createConfig, http } from "wagmi";
 import { injected, walletConnect } from "wagmi/connectors";
-import { mstMainnet, mstTestnet } from "./chains";
+import { mstTestnet } from "./chains";
 
 const walletConnectProjectId = process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID;
 
 export const wagmiConfig = createConfig({
-  chains: [mstTestnet, mstMainnet],
+  chains: [mstTestnet],
   connectors: [
     injected(),
     ...(walletConnectProjectId ? [walletConnect({ projectId: walletConnectProjectId })] : []),
@@ -15,7 +15,6 @@ export const wagmiConfig = createConfig({
   // See app/api/rpc/[network]/route.ts.
   transports: {
     [mstTestnet.id]: http("/api/rpc/testnet"),
-    [mstMainnet.id]: http("/api/rpc/mainnet"),
   },
 });
 
