@@ -6,6 +6,20 @@ function upstreamBase(): string {
   return process.env.RELAYER_URL || "http://127.0.0.1:8787";
 }
 
+function publicOrigin(request: NextRequest): string {
+  const browserOrigin = request.headers.get("origin");
+  if (browserOrigin) return browserOrigin;
+  // Browsers normally omit Origin on same-origin GETs. Behind Railway's proxy,
+  // request.url can contain an internal host, while the signed challenge uses
+  // the public browser origin. Reconstruct that public origin for session reads.
+  const host = request.headers.get("x-forwarded-host") || request.headers.get("host");
+  const forwardedProtocol = request.headers.get("x-forwarded-proto")?.split(",")[0]?.trim();
+  const protocol = forwardedProtocol === "http" || forwardedProtocol === "https"
+    ? forwardedProtocol
+    : new URL(request.url).protocol.slice(0, -1);
+  return host ? `${protocol}://${host}` : new URL(request.url).origin;
+}
+
 async function forward(request: NextRequest, path: string[]) {
   const target = new URL(path.join("/"), `${upstreamBase().replace(/\/$/, "")}/`);
   target.search = new URL(request.url).search;
@@ -16,7 +30,7 @@ async function forward(request: NextRequest, path: string[]) {
     const value = request.headers.get(name);
     if (value) headers.set(name, value);
   }
-  headers.set("origin", request.headers.get("origin") || new URL(request.url).origin);
+  headers.set("origin", publicOrigin(request));
   try {
     const response = await fetch(target, { method: request.method, headers, body, cache: "no-store" });
     const text = await response.text();
