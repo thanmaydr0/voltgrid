@@ -166,8 +166,15 @@ class EthersChainClient {
         this.market = new ethers_1.Contract(this.marketAddress, abi_1.MARKET_ABI, this.wallet);
     }
     async getChainId() {
-        const network = await this.provider.getNetwork();
-        return numberValue(network.chainId);
+        // getNetwork() may return the static network passed to JsonRpcProvider;
+        // query the remote endpoint so a misconfigured chain cannot pass health checks.
+        const raw = await this.provider.send("eth_chainId", []);
+        if (typeof raw !== "string" || !/^0x[0-9a-fA-F]+$/.test(raw))
+            throw new Error("RPC returned an invalid chain ID");
+        const observed = BigInt(raw);
+        if (observed < 1n || observed > BigInt(Number.MAX_SAFE_INTEGER))
+            throw new Error("RPC chain ID is out of range");
+        return Number(observed);
     }
     async getRegisteredHouses() {
         const addresses = await this.market.getHouses();
