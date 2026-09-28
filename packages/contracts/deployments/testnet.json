@@ -1,0 +1,446 @@
+{
+  "schemaVersion": 1,
+  "network": "mst-testnet",
+  "chainId": 91562037,
+  "explorerBaseUrl": "https://testnet.mstscan.com",
+  "deployerAddress": "0xcC689cfA225Bd86d24D0a359Cd474130671550d9",
+  "treasuryAddress": "0xcC689cfA225Bd86d24D0a359Cd474130671550d9",
+  "compiler": {
+    "version": "0.8.20",
+    "evmVersion": "paris",
+    "optimizerRuns": 200,
+    "viaIR": true
+  },
+  "contracts": {
+    "VoltToken": {
+      "address": "0x66fa5F2596111F7C6421a8b7eA5fc2D75495194E",
+      "deployTxHash": "0x51eea6ebe77aef98e5fe3b187eb50a036ccc0444e8ae6233f222044b339528f6",
+      "blockNumber": "5788358",
+      "gasUsed": "911588",
+      "runtimeCodeHash": "0x45d48ba0199639e4961a696db5d851df564763e68a411a9459af54ec3c175c9f",
+      "constructorArguments": [
+        "0xcC689cfA225Bd86d24D0a359Cd474130671550d9"
+      ]
+    },
+    "VoltGridMarket": {
+      "address": "0xe7f944785De4D7936ae21a1F5Af47BDC7B775Ae6",
+      "deployTxHash": "0xd5adc84e947b031a90405ca9253ffc98e563f265d103d1f04065d4c60c604686",
+      "blockNumber": "5788595",
+      "gasUsed": "3597376",
+      "runtimeCodeHash": "0x4b0a363a646c82098444e06aed7295055c0a2ce059c4d9efc637dde494296d9f",
+      "constructorArguments": [
+        "0x66fa5F2596111F7C6421a8b7eA5fc2D75495194E",
+        "0xcC689cfA225Bd86d24D0a359Cd474130671550d9"
+      ]
+    },
+    "CarbonCertificate": {
+      "address": "0xCed6462B7E9E0FFE891bcdE8260d0FA6D9139D93",
+      "deployTxHash": "0x114721e179fef7cfabf57e16dfa91d523db877a5fc9d6e09891777ae2cdf206b",
+      "blockNumber": "5788597",
+      "gasUsed": "2106830",
+      "runtimeCodeHash": "0x09d416fe5251a910bf1af68135d6cc609ec38b929e46d09baee4313ad183b92a",
+      "constructorArguments": [
+        "0xe7f944785De4D7936ae21a1F5Af47BDC7B775Ae6"
+      ]
+    }
+  },
+  "transactions": {
+    "certificateBinding": {
+      "hash": "0x81998846c11f416e026aba1bd564a17ec9e3d9720b984349f6a1daa72bec8a19",
+      "blockNumber": "5788599",
+      "gasUsed": "35926",
+      "certificateAddress": "0xCed6462B7E9E0FFE891bcdE8260d0FA6D9139D93"
+    },
+    "roleGrants": {
+      "market.ORACLE_ROLE": {
+        "target": "0xE3dFFBc501b193A91D6C2ABee4f1C08e0A5EB4C9",
+        "status": "confirmed",
+        "tx": {
+          "hash": "0xfa7927501fd3e403fb5b2d2e296b10fdf0be14d382947f67cfb87fff68f2e413",
+          "blockNumber": "5788682",
+          "gasUsed": "51369"
+        }
+      },
+      "market.GRID_OPERATOR_ROLE": {
+        "target": "0xE3dFFBc501b193A91D6C2ABee4f1C08e0A5EB4C9",
+        "status": "confirmed",
+        "tx": {
+          "hash": "0x92f99bf4f4209b49b53594ade1836b677fda75a52be0b0e956dd9158efadb7bc",
+          "blockNumber": "5788684",
+          "gasUsed": "51369"
+        }
+      },
+      "market.REGISTRAR_ROLE": {
+        "target": "0xcC689cfA225Bd86d24D0a359Cd474130671550d9",
+        "status": "already-held"
+      },
+      "market.SEEDER_ROLE": {
+        "target": "0xcC689cfA225Bd86d24D0a359Cd474130671550d9",
+        "status": "already-held"
+      },
+      "token.MINTER_ROLE": {
+        "target": "0xcC689cfA225Bd86d24D0a359Cd474130671550d9",
+        "status": "already-held"
+      }
+    },
+    "seedReceipts": [
+      {
+        "label": "register house 0",
+        "tx": {
+          "hash": "0x30ff6e2578e778547354e5e98bf4a5013073baa6a785a6e35bd81840d5d0d25e",
+          "blockNumber": "5788707",
+          "gasUsed": "97016"
+        }
+      },
+      {
+        "label": "register house 1",
+        "tx": {
+          "hash": "0x844b142467a8d2b7a75f5af344ef55a240f3542b6ddb09ed985666c9933e7e9d",
+          "blockNumber": "5788709",
+          "gasUsed": "79916"
+        }
+      },
+      {
+        "label": "register house 2",
+        "tx": {
+          "hash": "0x1a285e103c3b17d731926af71ffdd8cbe85373f7281c7d2905837b8a17cf700d",
+          "blockNumber": "5788711",
+          "gasUsed": "79916"
+        }
+      },
+      {
+        "label": "register house 3",
+        "tx": {
+          "hash": "0xfac80c1e51d6010be6419ef04dd5117e3b37744888b284051c23064d54a05a08",
+          "blockNumber": "5788713",
+          "gasUsed": "79886"
+        }
+      },
+      {
+        "label": "register house 4",
+        "tx": {
+          "hash": "0x9523edb92a2300f6e2e56daed922445799fab377dd76eee1c5f6b9e1f49d89f8",
+          "blockNumber": "5788715",
+          "gasUsed": "79874"
+        }
+      },
+      {
+        "label": "register house 5",
+        "tx": {
+          "hash": "0xabf4c914457d23f69eef2d035e654e34eae29ca5be4889fe736d07342e89b8f1",
+          "blockNumber": "5788717",
+          "gasUsed": "79874"
+        }
+      },
+      {
+        "label": "register house 6",
+        "tx": {
+          "hash": "0xd826de38bc616fb8875aaf06b9c7d70b68432229ad646ccc01b4e430c06dbe39",
+          "blockNumber": "5788719",
+          "gasUsed": "79874"
+        }
+      },
+      {
+        "label": "register house 7",
+        "tx": {
+          "hash": "0x11a5c3bb409c14d00bb006813423104ee29a8a3d05a3897ece72da166eb14407",
+          "blockNumber": "5788721",
+          "gasUsed": "79874"
+        }
+      },
+      {
+        "label": "mint VLT seed budget",
+        "tx": {
+          "hash": "0xe77e586b7de0dd658c45cad48622c22da89bfbd75eeb63ab2b834ab2cb369462",
+          "blockNumber": "5788723",
+          "gasUsed": "70528"
+        }
+      },
+      {
+        "label": "approve VLT seed budget",
+        "tx": {
+          "hash": "0x739cf24ffa017e17db7ac58b32ead7e5c7416ca32ab32383b9a8541735477cb3",
+          "blockNumber": "5788725",
+          "gasUsed": "46030"
+        }
+      },
+      {
+        "label": "fund house 0x0000000000000000000000000000000000000101",
+        "tx": {
+          "hash": "0x58af416f2bce93f106810631e39fb82fb1b1540d572c80c783ff938ce8cfe0ce",
+          "blockNumber": "5788727",
+          "gasUsed": "91421"
+        }
+      },
+      {
+        "label": "fund house 0x0000000000000000000000000000000000000102",
+        "tx": {
+          "hash": "0xd33ec1874c1fd5a1c361aca9ec431ad3145a252599bd42b10e9433838d1a263c",
+          "blockNumber": "5788729",
+          "gasUsed": "74321"
+        }
+      },
+      {
+        "label": "fund house 0x0000000000000000000000000000000000000103",
+        "tx": {
+          "hash": "0xb91a2cbd92b674ffefc184cb3deeb82dc6d7090955e75d79df2a54e9fd9cd29c",
+          "blockNumber": "5788731",
+          "gasUsed": "74321"
+        }
+      },
+      {
+        "label": "fund house 0x0000000000000000000000000000000000000104",
+        "tx": {
+          "hash": "0xc10b4c200ffa8790a78e8de214ebebfabb33ae34a3582eb50e1ac581c2dd4a34",
+          "blockNumber": "5788733",
+          "gasUsed": "74321"
+        }
+      },
+      {
+        "label": "fund house 0x0000000000000000000000000000000000000105",
+        "tx": {
+          "hash": "0x51e032fd14f826223bed9d1df928a1ae3f0ee51fddbf6ec287988ee7d7fd7615",
+          "blockNumber": "5788735",
+          "gasUsed": "74321"
+        }
+      },
+      {
+        "label": "fund house 0x0000000000000000000000000000000000000106",
+        "tx": {
+          "hash": "0x93c8de96dace5bbb1caec739c7542b9f3be4a046e66dd0c61178120e698a706f",
+          "blockNumber": "5788737",
+          "gasUsed": "74321"
+        }
+      },
+      {
+        "label": "fund house 0x0000000000000000000000000000000000000107",
+        "tx": {
+          "hash": "0x0ce899f0df85d2524b3000a373726c91ec7598190ebbfb2c5b45af649fe72b9b",
+          "blockNumber": "5788739",
+          "gasUsed": "74321"
+        }
+      },
+      {
+        "label": "fund house 0x0000000000000000000000000000000000000108",
+        "tx": {
+          "hash": "0x2687a4ad520cec0ea566a01d21f5c3b46f144505e40bed00b891fa775f2235f6",
+          "blockNumber": "5788741",
+          "gasUsed": "74321"
+        }
+      },
+      {
+        "label": "fund treasury",
+        "tx": {
+          "hash": "0xed488be0c8791c124a48417259a32c1edcf93636a6d884235dcca71ad706b2e5",
+          "blockNumber": "5788743",
+          "gasUsed": "60512"
+        }
+      }
+    ],
+    "roleRevocations": {
+      "market.ORACLE_ROLE.deployer": {
+        "target": "0xcC689cfA225Bd86d24D0a359Cd474130671550d9",
+        "status": "confirmed",
+        "tx": {
+          "hash": "0x65247f549865b978136f9dd18b128799162d96b34092df7933cf908a2f2a710a",
+          "blockNumber": "5788794",
+          "gasUsed": "30252"
+        }
+      },
+      "market.GRID_OPERATOR_ROLE.deployer": {
+        "target": "0xcC689cfA225Bd86d24D0a359Cd474130671550d9",
+        "status": "confirmed",
+        "tx": {
+          "hash": "0x402ecf924adc7209fe8ab5a58f0dfe22bf77aafae42a829a755e6a5fb9b8d942",
+          "blockNumber": "5788796",
+          "gasUsed": "30252"
+        }
+      },
+      "market.REGISTRAR_ROLE.deployer": {
+        "target": "0xcC689cfA225Bd86d24D0a359Cd474130671550d9",
+        "status": "confirmed",
+        "tx": {
+          "hash": "0x64de8f9c3f2a95f60bf33335d196aa362fa04257c53146931e762e2fd4b9817f",
+          "blockNumber": "5788798",
+          "gasUsed": "30252"
+        }
+      },
+      "market.SEEDER_ROLE.deployer": {
+        "target": "0xcC689cfA225Bd86d24D0a359Cd474130671550d9",
+        "status": "confirmed",
+        "tx": {
+          "hash": "0xbe94f46350f413cce2132cd0442d516630fa72c5c55ac5622192204ff0cc1485",
+          "blockNumber": "5788800",
+          "gasUsed": "30252"
+        }
+      },
+      "token.MINTER_ROLE.deployer": {
+        "target": "0xcC689cfA225Bd86d24D0a359Cd474130671550d9",
+        "status": "confirmed",
+        "tx": {
+          "hash": "0xf55746fa3688367e77b4cddc183fdb976bd176b6c2a752ba6278d9dd04c4edd9",
+          "blockNumber": "5789005",
+          "gasUsed": "29620"
+        }
+      }
+    },
+    "smokeRun": {
+      "dayId": "0x729f6ccfb304f249d85ea2d7c6bd3d41a0e78bad21023679d354564ad937b57a",
+      "scenario": "sunny",
+      "seed": "p9-sunny-smoke-bdf04982-1f81-4aad-9d48-39eb2e5e670d",
+      "outcomeCount": 24,
+      "emergencyCount": 0,
+      "certificateCount": 4,
+      "closeTxHash": "0xfd6119e6ff9bdb5299773e00c1e72e601e439b4df221d3f631886ccb8af190a4",
+      "closeBlockNumber": "5789084",
+      "gasUsed": "6434141",
+      "epochTransactions": [
+        {
+          "hash": "0x592aaa47f7fe8c35275d6c379f036ed6d4eac588dc520f33f886d26d8ed5bdaa",
+          "blockNumber": "5789023",
+          "matchedWh": 0,
+          "priceMicroVltPerKwh": 0
+        },
+        {
+          "hash": "0x5996a961163b824c251a6468ad4fb7d982d2989d98240956d3ec1d5cbe429bcc",
+          "blockNumber": "5789026",
+          "matchedWh": 0,
+          "priceMicroVltPerKwh": 0
+        },
+        {
+          "hash": "0xffc4c0e05e228cb3aa8514a322deb916d26aae48cc1658c033e69562cbab69a9",
+          "blockNumber": "5789029",
+          "matchedWh": 0,
+          "priceMicroVltPerKwh": 0
+        },
+        {
+          "hash": "0xcb1954aaf36b6eb0b4a841e7c43dd35566b83e19dfeb4bd6434ee2c80e77fc2f",
+          "blockNumber": "5789031",
+          "matchedWh": 0,
+          "priceMicroVltPerKwh": 0
+        },
+        {
+          "hash": "0xc1dd6933cb065e8e66dd79365dcc48d6052ab3da4c020592a11c2ebbe4fa1b1f",
+          "blockNumber": "5789033",
+          "matchedWh": 0,
+          "priceMicroVltPerKwh": 0
+        },
+        {
+          "hash": "0x660eacc51967556ed1868bef0c4b40ce168c511634da6ffa93a45b80a811a55d",
+          "blockNumber": "5789035",
+          "matchedWh": 0,
+          "priceMicroVltPerKwh": 0
+        },
+        {
+          "hash": "0xcf0abc4de4b95c479b39cc9fbeb6caaabc202fd49e6e458739dc7f0f5d11bbf6",
+          "blockNumber": "5789037",
+          "matchedWh": 934,
+          "priceMicroVltPerKwh": 7000000
+        },
+        {
+          "hash": "0x00bcc3d32aba006351eb61055feb89bb41e440a91dccb7df4b620f5741d75f52",
+          "blockNumber": "5789040",
+          "matchedWh": 4712,
+          "priceMicroVltPerKwh": 5243000
+        },
+        {
+          "hash": "0x53fd867fd3a063e26b17cb796f7ae05490bfd44080dc8828c563a29976d8bc19",
+          "blockNumber": "5789043",
+          "matchedWh": 5236,
+          "priceMicroVltPerKwh": 3543500
+        },
+        {
+          "hash": "0x49ab83b997644c03d3ebb5d656618a6fe3efbc8158d5319a3e2b9b2131973a94",
+          "blockNumber": "5789045",
+          "matchedWh": 5215,
+          "priceMicroVltPerKwh": 3000000
+        },
+        {
+          "hash": "0xaf050517da3dd30a667e77336115cb7c4ea1b76d7a5d031b896b8707b36da4e0",
+          "blockNumber": "5789047",
+          "matchedWh": 5150,
+          "priceMicroVltPerKwh": 3000000
+        },
+        {
+          "hash": "0xd93bbb878f5b197bd3b20791b03540ab0dd624c1dce372138b31804756fa9a7a",
+          "blockNumber": "5789049",
+          "matchedWh": 5218,
+          "priceMicroVltPerKwh": 3000000
+        },
+        {
+          "hash": "0xb5a19818723f637bbe587b388cf434b29502a96ee435baa4352173f3d91befeb",
+          "blockNumber": "5789051",
+          "matchedWh": 5258,
+          "priceMicroVltPerKwh": 3000000
+        },
+        {
+          "hash": "0xa6740f3f266d36fca918fbdf5558f2ffa8adce74fac04830408e33bdbc723814",
+          "blockNumber": "5789054",
+          "matchedWh": 5062,
+          "priceMicroVltPerKwh": 3000000
+        },
+        {
+          "hash": "0x098e0c8febbd8c43e36f746331ff7495faf22cc0bf6368308f4e40237335111a",
+          "blockNumber": "5789057",
+          "matchedWh": 5241,
+          "priceMicroVltPerKwh": 3000000
+        },
+        {
+          "hash": "0x970cf903f13b03a40c99b5f92710b43ec37948ce891f511f2bfa4c9d43a2efb3",
+          "blockNumber": "5789060",
+          "matchedWh": 5090,
+          "priceMicroVltPerKwh": 3000000
+        },
+        {
+          "hash": "0xa83cfeffd8988ef2704f09feff3d6fcc1cfd2d9f944280cbcf28b8570b9a8210",
+          "blockNumber": "5789063",
+          "matchedWh": 5177,
+          "priceMicroVltPerKwh": 3517500
+        },
+        {
+          "hash": "0xc3d00fba227330ae124f81152d3c84b30a25aeeba77ffc1a1b262e313ab47478",
+          "blockNumber": "5789065",
+          "matchedWh": 3719,
+          "priceMicroVltPerKwh": 7000000
+        },
+        {
+          "hash": "0xddd0f39c7c62a9d15fcd2ca411e226c8fdd07360723dbb2ba5aed7832c631c7f",
+          "blockNumber": "5789068",
+          "matchedWh": 25,
+          "priceMicroVltPerKwh": 7000000
+        },
+        {
+          "hash": "0x2116f875ffb0c0fe34f72776023ef197c5eb5a008827d010f94a12198f04ce6a",
+          "blockNumber": "5789071",
+          "matchedWh": 0,
+          "priceMicroVltPerKwh": 0
+        },
+        {
+          "hash": "0xf87929b3abaa262d114f5eca6a444b271a6127eb49258124705107cc97d81050",
+          "blockNumber": "5789074",
+          "matchedWh": 0,
+          "priceMicroVltPerKwh": 0
+        },
+        {
+          "hash": "0x3e66f75794d244b77296122485fda3c89bf9eeb0be2ab71927158b279efe3be8",
+          "blockNumber": "5789076",
+          "matchedWh": 0,
+          "priceMicroVltPerKwh": 0
+        },
+        {
+          "hash": "0x31534681104ba860e2116ec3d9aa9ba80b4034e3a83a0f1c117d215cda8a8555",
+          "blockNumber": "5789079",
+          "matchedWh": 0,
+          "priceMicroVltPerKwh": 0
+        },
+        {
+          "hash": "0x1255e6fcb616eb36f8dc4f994d7237f75968400bf206c7ef05ec73e94b194aff",
+          "blockNumber": "5789081",
+          "matchedWh": 0,
+          "priceMicroVltPerKwh": 0
+        }
+      ],
+      "explorerUrl": "https://testnet.mstscan.com/tx/0xfd6119e6ff9bdb5299773e00c1e72e601e439b4df221d3f631886ccb8af190a4"
+    }
+  }
+}

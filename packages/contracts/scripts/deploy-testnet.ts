@@ -13,6 +13,7 @@ import {
   withTestnetAdminLock,
   writeJsonAtomic,
   writeTestnetDeployment,
+  waitForTestnetReceipt,
   type TestnetContractRecord,
   type TestnetDeployment,
 } from "./lib/testnetDeployment";
@@ -83,14 +84,6 @@ async function transactionForNonce(
   throw new Error(`Nonce ${nonce} was consumed but its transaction could not be reconciled; refusing to deploy again`);
 }
 
-async function waitReceipt(provider: typeof hre.ethers.provider, hash: string, label: string) {
-  const timeout = Number(process.env.MST_TESTNET_RECEIPT_TIMEOUT_MS || "120000");
-  if (!Number.isSafeInteger(timeout) || timeout < 1000 || timeout > 600000) throw new Error("MST_TESTNET_RECEIPT_TIMEOUT_MS must be 1000..600000");
-  const receipt = await provider.waitForTransaction(hash, 1, timeout);
-  if (!receipt) throw new Error(`${label} is still unconfirmed (${hash}); rerun to reconcile, do not resubmit`);
-  return receipt;
-}
-
 async function deployContract(
   name: (typeof CONTRACT_NAMES)[number],
   factory: Awaited<ReturnType<typeof hre.ethers.getContractFactory>>,
@@ -144,7 +137,7 @@ async function deployContract(
   }
 
   if (!intent.txHash) throw new Error(`${name} deployment journal has no recoverable transaction hash`);
-  const receipt = await waitReceipt(provider, intent.txHash, name);
+  const receipt = await waitForTestnetReceipt(provider, intent.txHash, name);
   if (receipt.status !== 1) {
     intent.state = "reverted";
     await saveJournal(journal);
@@ -182,7 +175,7 @@ async function bindCertificate(
   if (bound === getAddress(certificateAddress)) {
     const intent = journal.certificateBinding;
     if (intent?.txHash) {
-      const receipt = await waitReceipt(provider, intent.txHash, "certificate binding");
+      const receipt = await waitForTestnetReceipt(provider, intent.txHash, "certificate binding");
       if (receipt.status !== 1) {
         intent.state = "reverted";
         await saveJournal(journal);
@@ -200,7 +193,7 @@ async function bindCertificate(
       intent.txHash = found.hash;
       intent.state = "submitted";
       await saveJournal(journal);
-      const receipt = await waitReceipt(provider, found.hash, "certificate binding");
+      const receipt = await waitForTestnetReceipt(provider, found.hash, "certificate binding");
       if (receipt.status !== 1) {
         intent.state = "reverted";
         await saveJournal(journal);
@@ -244,7 +237,7 @@ async function bindCertificate(
     }
   }
   if (!intent.txHash) throw new Error("Certificate binding is pending without a transaction hash");
-  const receipt = await waitReceipt(provider, intent.txHash, "certificate binding");
+  const receipt = await waitForTestnetReceipt(provider, intent.txHash, "certificate binding");
   if (receipt.status !== 1) {
     intent.state = "reverted";
     await saveJournal(journal);

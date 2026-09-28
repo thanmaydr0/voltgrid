@@ -1,5 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
+import { performance } from "node:perf_hooks";
+import { setTimeout as sleep } from "node:timers/promises";
 import { randomBytes } from "node:crypto";
 import { getAddress, keccak256, type TransactionReceipt } from "ethers";
 import type { Provider, Signer, TransactionRequest } from "ethers";
@@ -136,6 +138,46 @@ export async function assertRuntimeCode(provider: Provider, record: TestnetContr
   return codeHash;
 }
 
+export async function waitForTestnetReceipt(
+  provider: Provider,
+  hash: string,
+  label: string,
+  options: Readonly<{ timeoutMs?: number; pollIntervalMs?: number }> = {},
+): Promise<TransactionReceipt> {
+  const timeoutMs = options.timeoutMs ?? Number(process.env.MST_TESTNET_RECEIPT_TIMEOUT_MS || "120000");
+  const pollIntervalMs = options.pollIntervalMs ?? 500;
+  if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1000 || timeoutMs > 600000) {
+    throw new Error("MST_TESTNET_RECEIPT_TIMEOUT_MS must be 1000..600000");
+  }
+  if (!Number.isSafeInteger(pollIntervalMs) || pollIntervalMs < 1 || pollIntervalMs > 10000) {
+    throw new Error("Receipt polling interval must be 1..10000ms");
+  }
+
+  const deadline = performance.now() + timeoutMs;
+  while (true) {
+    const receipt = await provider.getTransactionReceipt(hash);
+    if (receipt) return receipt;
+
+    const remainingMs = deadline - performance.now();
+    if (remainingMs <= 0) {
+      throw new Error(`${label} receipt is still unavailable (${hash}); its journal remains intact. Retry the same command to reconcile; do not resubmit.`);
+    }
+    await sleep(Math.min(pollIntervalMs, remainingMs));
+  }
+}
+
+export async function getLegacyTestnetGasPrice(provider: Provider): Promise<bigint> {
+  const gasPrice = (await provider.getFeeData()).gasPrice;
+  if (gasPrice === null || gasPrice <= 0n) {
+    throw new Error("MST Testnet RPC did not provide a usable legacy gas price");
+  }
+  return gasPrice;
+}
+
+export function canSkipAppliedAdminAction(pendingAction: string, currentAction: string, alreadyApplied: boolean): boolean {
+  return alreadyApplied && pendingAction !== currentAction;
+}
+
 type PendingTransactionJournal = {
   schemaVersion: 1;
   chainId: number;
@@ -191,9 +233,14 @@ export async function sendRecoverableTransaction(options: {
   const data = request.data.toString();
   const value = (request.value ?? 0n).toString();
   let pending = await readJsonIfPresent<PendingTransactionJournal>(TESTNET_TX_JOURNAL_PATH);
+  const alreadyApplied = await isApplied();
+
+  // A journal may belong to a later operation in a sequence. Skip earlier
+  // operations only when their on-chain state proves they already completed.
+  if (pending && canSkipAppliedAdminAction(pending.action, action, alreadyApplied)) return undefined;
 
   if (!pending) {
-    if (await isApplied()) return undefined;
+    if (alreadyApplied) return undefined;
     const latest = await provider.getTransactionCount(from, "latest");
     const nonce = await provider.getTransactionCount(from, "pending");
     if (nonce !== latest) throw new Error("Admin account has an unrelated pending transaction; reconcile it before continuing");
@@ -232,6 +279,10 @@ export async function sendRecoverableTransaction(options: {
       await writeJsonAtomic(TESTNET_TX_JOURNAL_PATH, pending);
     } else {
       const estimate = await provider.estimateGas({ ...request, from, nonce: pending.nonce });
+      if (request.maxFeePerGas !== undefined || request.maxPriorityFeePerGas !== undefined) {
+        throw new Error(`${action} must not mix legacy gasPrice with EIP-1559 fee caps`);
+      }
+      const gasPrice = request.gasPrice ?? await getLegacyTestnetGasPrice(provider);
       const tx = await signer.sendTransaction({
         ...request,
         to,
@@ -239,6 +290,7 @@ export async function sendRecoverableTransaction(options: {
         value: BigInt(value),
         nonce: pending.nonce,
         gasLimit: request.gasLimit ?? estimate * 125n / 100n,
+        gasPrice,
       });
       pending.hash = tx.hash;
       pending.state = "submitted";
@@ -246,10 +298,7 @@ export async function sendRecoverableTransaction(options: {
     }
   }
 
-  const timeout = Number(process.env.MST_TESTNET_RECEIPT_TIMEOUT_MS || "120000");
-  if (!Number.isSafeInteger(timeout) || timeout < 1000 || timeout > 600000) throw new Error("MST_TESTNET_RECEIPT_TIMEOUT_MS must be 1000..600000");
-  const receipt = await provider.waitForTransaction(pending.hash, 1, timeout);
-  if (!receipt) throw new Error(`${action} remains pending (${pending.hash}); rerun the same operation to reconcile, do not resend`);
+  const receipt = await waitForTestnetReceipt(provider, pending.hash, action);
   if (receipt.status !== 1) {
     pending.state = "reverted";
     await writeJsonAtomic(TESTNET_TX_JOURNAL_PATH, pending);
