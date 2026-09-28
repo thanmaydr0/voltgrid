@@ -6,7 +6,8 @@ import { Interface, Wallet } from "ethers";
 import { test } from "node:test";
 import { AuthManager } from "../src/auth";
 import { MARKET_ABI } from "../src/abi";
-import type { ChainClient, ReconciledAction } from "../src/chain";
+import { EthersChainClient, type ChainClient, type ReconciledAction } from "../src/chain";
+import { loadConfig } from "../src/config";
 import { HttpError } from "../src/errors";
 import { type HttpRequest, type HttpResponse, RelayerHttpRouter } from "../src/http";
 import { RelayerService } from "../src/service";
@@ -27,6 +28,27 @@ import type {
 const ORIGIN = "http://localhost:3000";
 const MARKET = "0x0000000000000000000000000000000000001000" as Address;
 const UUID = (number: number) => `00000000-0000-4000-8000-${number.toString(16).padStart(12, "0")}`;
+
+test("production requires a positive chain ID and probes the RPC instead of trusting static network config", async () => {
+  const env = {
+    RELAYER_MODE: "production",
+    MST_RPC_URL: "http://127.0.0.1:8545",
+    MARKET_ADDRESS: MARKET,
+    ORACLE_PRIVATE_KEY: `0x${"11".repeat(32)}`,
+    RELAYER_ALLOWED_ORIGINS: ORIGIN,
+    RELAYER_ADMIN_SECRET: "admin-test-secret",
+    RELAYER_AUTH_SECRET: "auth-test-secret",
+  };
+  assert.throws(() => loadConfig(env), /MST_CHAIN_ID/);
+  assert.throws(() => loadConfig({ ...env, MST_CHAIN_ID: "0" }), /MST_CHAIN_ID/);
+  const configured = loadConfig({ ...env, MST_CHAIN_ID: "91562037" });
+  const chain = new EthersChainClient(configured);
+  Object.defineProperty(chain.provider, "send", { value: async (method: string) => {
+    assert.equal(method, "eth_chainId");
+    return "0x1";
+  } });
+  assert.equal(await chain.getChainId(), 1);
+});
 
 function config(overrides: Partial<RelayerConfig> = {}): RelayerConfig {
   return Object.freeze({
