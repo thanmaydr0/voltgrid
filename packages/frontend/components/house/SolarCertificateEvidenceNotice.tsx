@@ -31,7 +31,7 @@ export function SolarCertificateEvidenceNotice({ compact = false }: { compact?: 
             <li><strong className="text-foreground">Corroborate with a recent bill:</strong> where that utility exposes them, compare import, export, net units, or solar-generation/meter readings. Labels and billing rules vary; a zero bill is not required, since fixed charges can remain.</li>
             <li><strong className="text-foreground">Corroborate in the DISCOM account:</strong> the owner should sign in directly to their own utility portal and inspect any rooftop/net-metering connection status. VoltGrid must not collect utility passwords or OTPs.</li>
           </ol>
-          <p className="mb-0 text-xs text-muted-foreground">A bill or portal label alone is supporting evidence, not issuer-verified proof. This release has no upload/review workflow and stores none of these documents.</p>
+          <p className="mb-0 text-xs text-muted-foreground">A bill or portal label alone is supporting evidence, not issuer-verified proof. This release has no document-upload or official review workflow and stores none of these documents.</p>
         </div>
         <div className="flex flex-wrap gap-x-4 gap-y-2">
           <a className="text-primary underline underline-offset-4" href={portalDirectory} target="_blank" rel="noreferrer">Find the official state/DISCOM portal</a>

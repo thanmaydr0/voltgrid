@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { type Hash } from "viem";
 import { useAccount, usePublicClient, useReadContract, useWriteContract } from "wagmi";
 import { Badge } from "@/components/ui/badge";
@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { ConnectButton } from "@/components/ConnectButton";
 import { NetworkSwitcher } from "@/components/NetworkSwitcher";
 import { NetworkWarning } from "@/components/NetworkWarning";
+import { SolarBillOcrDemo } from "@/components/house/SolarBillOcrDemo";
 import { SolarCertificateEvidenceNotice } from "@/components/house/SolarCertificateEvidenceNotice";
 import { mstTestnet } from "@/lib/chains";
 import { contractAddresses } from "@/lib/addresses";
@@ -76,7 +77,14 @@ export function HouseRegistrationWizard() {
   const [capacityInput, setCapacityInput] = useState("");
   const [reviewedDeclaration, setReviewedDeclaration] = useState<HouseDeclaration>();
   const [tx, setTx] = useState<RegistrationTx>();
+  const [billVerificationOpen, setBillVerificationOpen] = useState(true);
+  const billVerificationDialogRef = useRef<HTMLDialogElement>(null);
   const verificationRef = useRef<((receipt: ReceiptLike) => Promise<void>) | null>(null);
+
+  useEffect(() => {
+    const dialog = billVerificationDialogRef.current;
+    if (billVerificationOpen && dialog && !dialog.open) dialog.showModal();
+  }, [billVerificationOpen]);
 
   const day = useReadContract({ address: marketAddress, abi: VOLT_GRID_MARKET_ABI, functionName: "currentDay", chainId: mstTestnet.id, query: { enabled: configured } });
   const treasury = useReadContract({ address: marketAddress, abi: VOLT_GRID_MARKET_ABI, functionName: "treasury", chainId: mstTestnet.id, query: { enabled: configured } });
@@ -177,6 +185,30 @@ export function HouseRegistrationWizard() {
 
   return (
     <main id="main-content" className="mx-auto w-full max-w-5xl space-y-6 px-4 py-8 sm:px-6 lg:px-8">
+      <dialog
+        ref={billVerificationDialogRef}
+        aria-labelledby="bill-verification-title"
+        aria-describedby="bill-verification-description"
+        onCancel={() => setBillVerificationOpen(false)}
+        onClose={() => setBillVerificationOpen(false)}
+        className="m-auto max-h-[92dvh] w-[min(94vw,48rem)] max-w-none overflow-y-auto rounded-xl border border-border bg-background p-0 text-foreground shadow-2xl backdrop:bg-black/70"
+      >
+        <div className="space-y-4 p-4 sm:p-6">
+          <header className="space-y-2">
+            <Badge variant="outline">First step · supporting bill check</Badge>
+            <h2 id="bill-verification-title" className="text-xl font-bold sm:text-2xl">Check a recent electricity bill</h2>
+            <p id="bill-verification-description" className="text-sm text-muted-foreground">
+              This demo looks for solar and net-metering clues before you continue. The official DISCOM/SNA rooftop commissioning certificate is still the primary verification evidence; bill OCR cannot verify a house or its owner.
+            </p>
+          </header>
+          <SolarBillOcrDemo />
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
+            <p className="max-w-xl text-xs text-muted-foreground">You can continue without a bill. House registration remains a model declaration and will not mark the property verified.</p>
+            <Button type="button" onClick={() => setBillVerificationOpen(false)}>Continue to registration</Button>
+          </div>
+        </div>
+      </dialog>
+
       <header className="space-y-3"><Badge variant={readiness.canSign ? "default" : "outline"}>{readiness.canSign ? "Ready for review" : "Readiness checks incomplete"}</Badge><h1 className="text-3xl font-bold tracking-tight">Register a house</h1><p className="max-w-3xl text-muted-foreground">This progressive flow declares a model parameter on-chain. It does not request location or ownership documents, and it does not label a house physically verified.</p></header>
 
       <nav aria-label="House registration steps" className="grid gap-2 sm:grid-cols-5">{steps.map((item, index) => <div key={item.key} className={`rounded-md border p-3 text-sm ${index === stepIndex ? "border-primary bg-primary/5" : "border-border"}`}><span className="text-xs text-muted-foreground">{index + 1}</span><br /><strong>{item.label}</strong></div>)}</nav>
