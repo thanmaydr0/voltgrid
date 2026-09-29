@@ -15,6 +15,12 @@ const HOUSE_POSITIONS = [
   [84, 70], [214, 70], [344, 70], [84, 188], [214, 188], [344, 188], [474, 70], [474, 188], [474, 129],
 ] as const;
 
+export type SimulationViewerOptions = Readonly<{
+  hasSolar?: boolean;
+  hasBattery?: boolean;
+  batteryCapacityWh?: number;
+}>;
+
 function roleFor(kind: HouseKind): FixtureHouse["role"] {
   if (kind === "solarOnly") return "solar";
   if (kind === "solarBattery") return "battery";
@@ -73,9 +79,15 @@ export function makeSimulationSnapshot(
   viewerEvCharging: boolean,
   viewerAddress?: Address,
   dayId?: `0x${string}`,
+  viewerOptions: SimulationViewerOptions = {},
 ): FixtureSnapshot {
   const houses = viewerAddress
-    ? createDefaultHouses({ viewerAddress: viewerAddress as SimAddress })
+    ? createDefaultHouses({
+        viewerAddress: viewerAddress as SimAddress,
+        viewerHasSolar: viewerOptions.hasSolar,
+        viewerHasBattery: viewerOptions.hasBattery,
+        viewerBatteryCapacityWh: viewerOptions.batteryCapacityWh,
+      })
     : DEFAULT_HOUSES;
   const output = simulateEpoch({
     modelVersion: 1,

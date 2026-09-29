@@ -13,6 +13,7 @@ import {
   MoreHorizontal,
   Settings,
   Send,
+  Zap,
   Sun,
   UserRound,
   WalletCards,
@@ -34,6 +35,7 @@ const primaryNavigation = [
 const moreNavigation = [
   { href: "/trade", label: "VLT trade", Icon: BarChart3 },
   { href: "/transfer", label: "Send VLT", Icon: Send },
+  { href: "/auto-send", label: "Auto-send", Icon: Zap },
   { href: "/emergency", label: "Grid emergency", Icon: AlertTriangle },
   { href: "/certificates", label: "Solar records", Icon: Award },
   { href: "/activity", label: "Activity", Icon: Activity },
