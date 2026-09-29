@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { parseEventLogs, type Address, type Hash, type Hex } from "viem";
 import { useAccount, usePublicClient, useReadContract, useWriteContract } from "wagmi";
 import { Button } from "@/components/ui/button";
@@ -40,9 +40,11 @@ function downloadProof(draft: HouseScreeningDraft, tokenId: bigint) {
 export function HouseScreeningDemoCredentialPanel({
   houseAddress,
   draft,
+  autoMintWhenReady = false,
 }: {
   houseAddress?: Address;
   draft?: HouseScreeningDraft;
+  autoMintWhenReady?: boolean;
 }) {
   const { address, chainId, isConnected } = useAccount();
   const client = usePublicClient({ chainId: mstTestnet.id });
@@ -50,6 +52,7 @@ export function HouseScreeningDemoCredentialPanel({
   const [tx, setTx] = useState<MintState>({ status: "idle" });
   const [busy, setBusy] = useState(false);
   const actionInFlight = useRef(false);
+  const autoMintStarted = useRef(false);
   const credentialAddress = contractAddresses.houseScreeningDemo;
   const configured = hasHouseScreeningDemoAddress && Boolean(credentialAddress);
   const eligibleAddress = houseAddress ?? address;
@@ -61,6 +64,7 @@ export function HouseScreeningDemoCredentialPanel({
     chainId: mstTestnet.id,
     query: { enabled: configured && Boolean(eligibleAddress) },
   });
+  const refetchCredentialToken = tokenQuery.refetch;
   const tokenId = tokenQuery.data ?? BigInt(0);
   const screeningQuery = useReadContract({
     address: credentialAddress,
@@ -103,7 +107,7 @@ export function HouseScreeningDemoCredentialPanel({
     mintMayBeStarted,
   );
 
-  async function reconcile(hash: Hash) {
+  const reconcile = useCallback(async (hash: Hash) => {
     if (!client || !credentialAddress || !draft || !houseAddress) {
       setTx({ status: "unknown", hash, message: "The MST Testnet receipt reader is unavailable. Keep this real transaction hash and retry reconciliation when RPC is available." });
       return;
@@ -158,16 +162,16 @@ export function HouseScreeningDemoCredentialPanel({
         draft,
       })) throw new Error("Credential receipt succeeded, but the owner, token pointer, or immutable screening data did not match.");
       setTx({ status: "confirmed", hash, tokenId: mintedTokenId, message: "Testnet demo credential confirmed from its receipt, mint event, owner, and immutable on-chain screening record." });
-      void tokenQuery.refetch();
+      void refetchCredentialToken();
     } catch (error) {
       setTx({ status: "unknown", hash, message: error instanceof Error ? error.message : "The receipt or on-chain screening state could not be reconciled. No credential is shown as confirmed." });
     } finally {
       actionInFlight.current = false;
       setBusy(false);
     }
-  }
+  }, [client, credentialAddress, draft, houseAddress, refetchCredentialToken]);
 
-  async function mint() {
+  const mint = useCallback(async () => {
     if (!canMint || !draft || !houseAddress || !credentialAddress || actionInFlight.current) return;
     actionInFlight.current = true;
     setBusy(true);
@@ -187,7 +191,13 @@ export function HouseScreeningDemoCredentialPanel({
       setBusy(false);
       setTx({ status: "error", message: error instanceof Error ? error.message : "Wallet did not submit the credential mint." });
     }
-  }
+  }, [canMint, credentialAddress, draft, houseAddress, reconcile, writeContractAsync]);
+
+  useEffect(() => {
+    if (!autoMintWhenReady || !canMint || autoMintStarted.current) return;
+    autoMintStarted.current = true;
+    void mint();
+  }, [autoMintWhenReady, canMint, mint]);
 
   const showOwnedRecord = configured && tokenId > BigInt(0) && currentWalletOwns && screening && !screeningQuery.isError;
   return <section className="space-y-3 rounded-xl border border-border bg-background/50 p-4" aria-labelledby="house-screening-demo-title">
@@ -198,6 +208,7 @@ export function HouseScreeningDemoCredentialPanel({
     </div>
 
     {!configured && <p className="rounded-md border border-border p-3 text-sm" role="status">Testnet demo credential contract is not configured; no mint is available.</p>}
+    {autoMintWhenReady && tx.status === "idle" && <p className="rounded-md border border-border p-3 text-sm" role="status" aria-live="polite">Your consented demo mint is being checked. If eligible, your wallet will ask you to approve the real MST Testnet transaction.</p>}
     {configured && !isConnected && <p className="rounded-md border border-border p-3 text-sm" role="status">Connect the wallet used for this house. No wallet or bill data is submitted by this screen.</p>}
     {configured && isConnected && chainId !== mstTestnet.id && <p className="rounded-md border border-border p-3 text-sm" role="status">Switch to MST Testnet ({mstTestnet.id}) to read or mint this demo credential.</p>}
     {configured && tokenQuery.isError && <p className="rounded-md border border-destructive/40 p-3 text-sm" role="alert">MST Testnet could not be read. The credential state is unknown; it is not treated as missing or confirmed.</p>}

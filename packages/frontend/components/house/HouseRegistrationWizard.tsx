@@ -13,7 +13,7 @@ import { NetworkSwitcher } from "@/components/NetworkSwitcher";
 import { NetworkWarning } from "@/components/NetworkWarning";
 import { HouseScreeningDemoCredentialPanel } from "@/components/house/HouseScreeningDemoCredentialPanel";
 import { SolarBillOcrDemo } from "@/components/house/SolarBillOcrDemo";
-import type { HouseScreeningDraft } from "@/components/house/house-screening-demo";
+import { shouldAutoRequestScreeningDemoMint, type HouseScreeningDraft } from "@/components/house/house-screening-demo";
 import { SolarCertificateEvidenceNotice } from "@/components/house/SolarCertificateEvidenceNotice";
 import { mstTestnet } from "@/lib/chains";
 import { contractAddresses } from "@/lib/addresses";
@@ -82,6 +82,7 @@ export function HouseRegistrationWizard() {
   const [reviewedDeclaration, setReviewedDeclaration] = useState<HouseDeclaration>();
   const [tx, setTx] = useState<RegistrationTx>();
   const [screeningDraft, setScreeningDraft] = useState<HouseScreeningDraft>();
+  const [autoMintDemoCredential, setAutoMintDemoCredential] = useState(false);
   const [screeningConsent, setScreeningConsent] = useState(false);
   const [screeningPreparing, setScreeningPreparing] = useState(false);
   const [billVerificationOpen, setBillVerificationOpen] = useState(true);
@@ -227,16 +228,17 @@ export function HouseRegistrationWizard() {
             onPreparationChange={setScreeningPreparing}
           />
           <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
-            <p className="max-w-xl text-xs text-muted-foreground">You can continue without evidence. If this wallet already has a solar declaration, the next screen will offer the demo mint. Otherwise, complete and confirm registration first; the credential then needs its own wallet signature.</p>
+            <p className="max-w-xl text-xs text-muted-foreground">With your consent and a matched OCR clue, Continue opens the demo mint request for an already-registered solar wallet. A new house must first complete its signed registration; after that receipt confirms, the mint request opens separately. You must approve each wallet transaction.</p>
             <Button
               type="button"
               disabled={screeningConsent && (screeningPreparing || !screeningDraft)}
               onClick={() => {
+                setAutoMintDemoCredential(shouldAutoRequestScreeningDemoMint(screeningConsent, screeningDraft));
                 if (screeningConsent && screeningDraft) setHasSolar(true);
                 setStep("declaration");
                 setBillVerificationOpen(false);
               }}
-            >Continue to registration</Button>
+            >{showExistingSolarHouseMint ? "Continue & open mint request" : "Continue to registration"}</Button>
           </div>
         </div>
       </dialog>
@@ -266,7 +268,7 @@ export function HouseRegistrationWizard() {
 
       {step === "declaration" && houseSnapshot?.exists ? <Card><CardHeader><CardTitle>House already registered</CardTitle><CardDescription>This wallet already has an on-chain house declaration, so the append-only market will not accept a second registration.</CardDescription></CardHeader><CardContent className="space-y-4">
         {houseSnapshot.hasSolar && <p className="rounded-md border border-border p-3 text-sm" role="status">The current MST Testnet registry says this wallet has solar declared. This is a model declaration, not official or physical verification.</p>}
-        {showExistingSolarHouseMint && address && <HouseScreeningDemoCredentialPanel houseAddress={address} draft={screeningDraft} />}
+        {showExistingSolarHouseMint && address && <HouseScreeningDemoCredentialPanel houseAddress={address} draft={screeningDraft} autoMintWhenReady={autoMintDemoCredential} />}
         {houseSnapshot.hasSolar && !screeningDraft && <div className="space-y-3"><p className="rounded-md border border-border p-3 text-sm">No bill screening draft is available in this page session. Run the local OCR screening before minting; cached OCR results are not restored.</p><Button type="button" variant="outline" onClick={() => setBillVerificationOpen(true)}>Open bill screening</Button></div>}
         {!houseSnapshot.hasSolar && <p className="rounded-md border border-border p-3 text-sm" role="status">This registered house has no solar declaration. The bill clue cannot change the immutable declaration, so no screening demo credential can be minted for this wallet.</p>}
         <div className="flex flex-wrap gap-3"><Link href="/house"><Button variant="outline">View house status</Button></Link><Link href="/wallet"><Button variant="outline">Open wallet</Button></Link></div>
@@ -285,7 +287,7 @@ export function HouseRegistrationWizard() {
         <div className="flex flex-wrap gap-3"><Button variant="outline" onClick={() => setStep("declaration")} disabled={busy}>Edit declaration</Button><Button onClick={() => void submitRegistration()} disabled={!canContinue || !reviewedDeclaration}>Open wallet to sign registration</Button></div>
       </CardContent></Card>}
 
-      {(step === "sign" || step === "receipt") && <Card><CardHeader><CardTitle>{tx?.stage === "confirmed" ? "House declaration confirmed" : "Wallet-sign and receipt verification"}</CardTitle><CardDescription>Only a successful receipt, matching HouseRegistered event from the expected market, and matching houses(address) state can confirm the on-chain model declaration. This is not physical or official house verification.</CardDescription></CardHeader><CardContent className="space-y-4"><RegistrationTransaction tx={tx} onReconcile={() => void reconcile()} />{tx?.stage === "confirmed" && <div className="space-y-4"><div className="flex flex-wrap gap-3"><Link href="/house"><Button>View house status</Button></Link><Link href="/wallet"><Button variant="outline">Open wallet</Button></Link></div>{screeningDraft && tx.houseAddress && reviewedDeclaration?.hasSolar && <HouseScreeningDemoCredentialPanel houseAddress={tx.houseAddress} draft={screeningDraft} />}{screeningDraft && !reviewedDeclaration?.hasSolar && <p className="rounded-md border border-border p-3 text-sm" role="status">The final on-chain declaration says no solar. The earlier OCR phrase match does not override it, so no house screening demo credential can be minted.</p>}</div>}{tx?.stage === "error" && <Button variant="outline" onClick={() => setStep("review")}>Return to review</Button>}</CardContent></Card>}
+      {(step === "sign" || step === "receipt") && <Card><CardHeader><CardTitle>{tx?.stage === "confirmed" ? "House declaration confirmed" : "Wallet-sign and receipt verification"}</CardTitle><CardDescription>Only a successful receipt, matching HouseRegistered event from the expected market, and matching houses(address) state can confirm the on-chain model declaration. This is not physical or official house verification.</CardDescription></CardHeader><CardContent className="space-y-4"><RegistrationTransaction tx={tx} onReconcile={() => void reconcile()} />{tx?.stage === "confirmed" && <div className="space-y-4"><div className="flex flex-wrap gap-3"><Link href="/house"><Button>View house status</Button></Link><Link href="/wallet"><Button variant="outline">Open wallet</Button></Link></div>{screeningDraft && tx.houseAddress && reviewedDeclaration?.hasSolar && <HouseScreeningDemoCredentialPanel houseAddress={tx.houseAddress} draft={screeningDraft} autoMintWhenReady={autoMintDemoCredential} />}{screeningDraft && !reviewedDeclaration?.hasSolar && <p className="rounded-md border border-border p-3 text-sm" role="status">The final on-chain declaration says no solar. The earlier OCR phrase match does not override it, so no house screening demo credential can be minted.</p>}</div>}{tx?.stage === "error" && <Button variant="outline" onClick={() => setStep("review")}>Return to review</Button>}</CardContent></Card>}
     </main>
   );
 }

@@ -86,6 +86,11 @@ export function isDemoScreeningPass(signalFlags: number): boolean {
   return Number.isInteger(signalFlags) && signalFlags >= 1 && signalFlags <= 7;
 }
 
+/** Mint may be requested only after the user consents and continues with a real OCR draft. */
+export function shouldAutoRequestScreeningDemoMint(consented: boolean, draft?: HouseScreeningDraft): boolean {
+  return consented && Boolean(draft && isDemoScreeningPass(draft.signalFlags));
+}
+
 export function screeningSignalLabels(flags: number): string[] {
   return [
     (flags & 1) !== 0 ? "solar/net-metering clue" : undefined,

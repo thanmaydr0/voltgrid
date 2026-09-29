@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { confirmedScreeningRecordMatches, isDemoScreeningPass, screeningSignalFlags, screeningSignalLabels, type HouseScreeningDraft, type HouseScreeningReceipt } from "../components/house/house-screening-demo";
+import { confirmedScreeningRecordMatches, isDemoScreeningPass, screeningSignalFlags, screeningSignalLabels, shouldAutoRequestScreeningDemoMint, type HouseScreeningDraft, type HouseScreeningReceipt } from "../components/house/house-screening-demo";
 import type { Hex } from "viem";
 
 const wallet = "0x1111111111111111111111111111111111111111" as const;
@@ -30,6 +30,13 @@ test("one real OCR clue is enough for a clearly-labeled testnet demo screening p
   assert.equal(isDemoScreeningPass(screeningSignalFlags(["export"])), true);
   assert.equal(isDemoScreeningPass(screeningSignalFlags([])), false);
   assert.equal(isDemoScreeningPass(8), false);
+});
+
+test("mint is requested only after consent and Continue carry a valid OCR draft", () => {
+  assert.equal(shouldAutoRequestScreeningDemoMint(false, draft), false);
+  assert.equal(shouldAutoRequestScreeningDemoMint(true), false);
+  assert.equal(shouldAutoRequestScreeningDemoMint(true, { ...draft, signalFlags: 0 }), false);
+  assert.equal(shouldAutoRequestScreeningDemoMint(true, draft), true);
 });
 
 test("a screening credential is confirmed only when receipt, event and fresh chain data agree", () => {
