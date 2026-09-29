@@ -16,6 +16,7 @@ export function getSupabasePublicEnv(): SupabasePublicEnv | null {
   try {
     const parsed = new URL(url);
     if (parsed.protocol !== "https:" && parsed.protocol !== "http:") return null;
+    if (process.env.NODE_ENV === "production" && parsed.protocol !== "https:") return null;
   } catch {
     return null;
   }

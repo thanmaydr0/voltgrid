@@ -3,7 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import type { Database } from "@/types/supabase";
 import { getSupabasePublicEnv } from "./env";
 
-/** Refresh cookie sessions for Next.js 14's middleware-era routing. */
+/** Refresh cookie sessions for the App Router proxy boundary. */
 export async function updateSession(request: NextRequest): Promise<NextResponse> {
   const env = getSupabasePublicEnv();
   if (!env) return NextResponse.next({ request });

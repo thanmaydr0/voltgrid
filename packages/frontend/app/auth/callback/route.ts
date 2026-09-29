@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
     return signInRedirect(request, "callback-failed", nextPath);
   }
 
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
   if (!supabase) return signInRedirect(request, "not-configured", nextPath);
 
   if (code) {

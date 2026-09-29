@@ -5,11 +5,11 @@ import type { Database } from "@/types/supabase";
 import { getSupabasePublicEnv } from "./env";
 
 /** Create a request-scoped SSR client. Never cache this client across requests. */
-export function createServerSupabaseClient(): SupabaseClient<Database> | null {
+export async function createServerSupabaseClient(): Promise<SupabaseClient<Database> | null> {
   const env = getSupabasePublicEnv();
   if (!env) return null;
 
-  const cookieStore = cookies();
+  const cookieStore = await cookies();
   return createServerClient<Database>(env.url, env.publishableKey, {
     cookies: {
       getAll() {
@@ -28,7 +28,7 @@ export function createServerSupabaseClient(): SupabaseClient<Database> | null {
 
 /** Verify the current identity with Supabase Auth; do not trust getSession().user. */
 export async function getVerifiedServerUser() {
-  const client = createServerSupabaseClient();
+  const client = await createServerSupabaseClient();
   if (!client) return { client: null, user: null, error: new Error("Supabase is not configured.") };
   const { data, error } = await client.auth.getUser();
   return { client, user: data.user, error };

@@ -22,8 +22,8 @@ function rpcError(message: string, status: number) {
  * Bounded, testnet-only read proxy. Wallet-signed writes still go through the
  * user's EIP-1193 provider and never pass through this route.
  */
-export async function POST(request: NextRequest, { params }: { params: { network: string } }) {
-  if (params.network !== "testnet") return rpcError("Only MST Testnet reads are available.", 404);
+export async function POST(request: NextRequest, { params }: { params: Promise<{ network: string }> }) {
+  if ((await params).network !== "testnet") return rpcError("Only MST Testnet reads are available.", 404);
 
   const contentLength = Number(request.headers.get("content-length") ?? 0);
   if (contentLength > MAX_BODY_BYTES) return rpcError("RPC request is too large.", 413);
