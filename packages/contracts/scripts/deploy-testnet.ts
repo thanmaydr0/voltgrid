@@ -46,11 +46,12 @@ type DeploymentJournal = {
   chainId: number;
   deployerAddress: string;
   treasuryAddress: string;
-  contracts: Partial<Record<"VoltToken" | "VoltGridMarket" | "CarbonCertificate", DeploymentIntent>>;
+  contracts: Partial<Record<"VoltToken" | "VoltGridMarket" | "CarbonCertificate" | "HouseScreeningDemoCertificate", DeploymentIntent>>;
   certificateBinding?: CallIntent;
 };
 
-const CONTRACT_NAMES = ["VoltToken", "VoltGridMarket", "CarbonCertificate"] as const;
+const CORE_CONTRACT_NAMES = ["VoltToken", "VoltGridMarket", "CarbonCertificate"] as const;
+const CONTRACT_NAMES = [...CORE_CONTRACT_NAMES, "HouseScreeningDemoCertificate"] as const;
 
 async function saveJournal(journal: DeploymentJournal): Promise<void> {
   await writeJsonAtomic(TESTNET_JOURNAL_PATH, journal);
@@ -267,12 +268,13 @@ async function main() {
     await assertMstTestnet(hre.ethers.provider);
 
     const existingArtifact = await fs.stat(TESTNET_DEPLOYMENT_PATH).then(() => true).catch(() => false);
+    let priorDeployment: TestnetDeployment | undefined;
     if (existingArtifact) {
       const artifact = JSON.parse(await fs.readFile(TESTNET_DEPLOYMENT_PATH, "utf8")) as TestnetDeployment;
       if (artifact.chainId !== MST_TESTNET_CHAIN_ID || artifact.deployerAddress.toLowerCase() !== deployerAddress.toLowerCase()) {
         throw new Error("An existing testnet artifact belongs to a different chain/deployer; refusing overwrite");
       }
-      for (const name of CONTRACT_NAMES) {
+      for (const name of CORE_CONTRACT_NAMES) {
         const record = artifact.contracts[name];
         if (!record) throw new Error(`Existing testnet artifact is incomplete (${name}); use the journaled resume flow, not a redeploy`);
         const code = await hre.ethers.provider.getCode(record.address);
@@ -280,11 +282,19 @@ async function main() {
           throw new Error(`Existing ${name} artifact does not match current on-chain bytecode`);
         }
       }
-      process.stdout.write("MST Testnet deployment already exists and bytecode checks pass; no transaction sent.\n");
-      return;
+      const demoRecord = artifact.contracts.HouseScreeningDemoCertificate;
+      if (demoRecord) {
+        const code = await hre.ethers.provider.getCode(demoRecord.address);
+        if (code === "0x" || keccak256(code).toLowerCase() !== demoRecord.runtimeCodeHash.toLowerCase()) {
+          throw new Error("Existing HouseScreeningDemoCertificate artifact does not match current on-chain bytecode");
+        }
+        process.stdout.write("MST Testnet deployment, including the house screening demo credential, already exists and bytecode checks pass; no transaction sent.\n");
+        return;
+      }
+      priorDeployment = artifact;
     }
 
-    const treasuryAddress = normalizeAddress(process.env.TREASURY_ADDRESS || deployerAddress, "TREASURY_ADDRESS");
+    const treasuryAddress = priorDeployment?.treasuryAddress ?? normalizeAddress(process.env.TREASURY_ADDRESS || deployerAddress, "TREASURY_ADDRESS");
     const journal = (await (async () => {
       try { return JSON.parse(await fs.readFile(TESTNET_JOURNAL_PATH, "utf8")) as DeploymentJournal; }
       catch (error) {
@@ -304,12 +314,27 @@ async function main() {
       throw new Error("Existing testnet deployment journal has different chain/deployer/treasury configuration");
     }
 
+    if (priorDeployment) {
+      const DemoCertificate = await hre.ethers.getContractFactory("HouseScreeningDemoCertificate", deployer);
+      const demo = await deployContract("HouseScreeningDemoCertificate", DemoCertificate, [priorDeployment.contracts.VoltGridMarket!.address], journal, hre.ethers.provider, deployerAddress);
+      await writeTestnetDeployment({
+        ...priorDeployment,
+        contracts: { ...priorDeployment.contracts, HouseScreeningDemoCertificate: demo },
+      });
+      await fs.unlink(TESTNET_JOURNAL_PATH).catch(() => undefined);
+      process.stdout.write("Confirmed MST Testnet house screening demo credential deployment.\n");
+      process.stdout.write("HouseScreeningDemoCertificate " + demo.address + " tx=" + demo.deployTxHash + " block=" + demo.blockNumber + " gas=" + demo.gasUsed + "\n");
+      return;
+    }
+
     const Token = await hre.ethers.getContractFactory("VoltToken", deployer);
     const token = await deployContract("VoltToken", Token, [deployerAddress], journal, hre.ethers.provider, deployerAddress);
     const Market = await hre.ethers.getContractFactory("VoltGridMarket", deployer);
     const market = await deployContract("VoltGridMarket", Market, [token.address, treasuryAddress], journal, hre.ethers.provider, deployerAddress);
     const Certificate = await hre.ethers.getContractFactory("CarbonCertificate", deployer);
     const certificate = await deployContract("CarbonCertificate", Certificate, [market.address], journal, hre.ethers.provider, deployerAddress);
+    const DemoCertificate = await hre.ethers.getContractFactory("HouseScreeningDemoCertificate", deployer);
+    const demo = await deployContract("HouseScreeningDemoCertificate", DemoCertificate, [market.address], journal, hre.ethers.provider, deployerAddress);
 
     const marketContract = await hre.ethers.getContractAt("VoltGridMarket", market.address, deployer);
     const binding = await bindCertificate(marketContract, market.address, certificate.address, journal, hre.ethers.provider, deployerAddress);
@@ -321,7 +346,7 @@ async function main() {
       deployerAddress,
       treasuryAddress,
       compiler: { version: "0.8.20", evmVersion: "paris", optimizerRuns: 200, viaIR: true },
-      contracts: { VoltToken: token, VoltGridMarket: market, CarbonCertificate: certificate },
+      contracts: { VoltToken: token, VoltGridMarket: market, CarbonCertificate: certificate, HouseScreeningDemoCertificate: demo },
       transactions: {
         certificateBinding: {
           hash: binding.hash,

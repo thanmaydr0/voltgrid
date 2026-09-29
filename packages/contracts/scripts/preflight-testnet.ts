@@ -6,6 +6,9 @@ import {
   MST_TESTNET_CHAIN_ID,
   MST_TESTNET_EXPLORER,
   MST_TESTNET_RPC,
+  TESTNET_DEPLOYMENT_PATH,
+  readTestnetDeployment,
+  type TestnetDeployment,
 } from "./lib/testnetDeployment";
 
 const FALLBACK_FROM = "0x0000000000000000000000000000000000000001";
@@ -25,8 +28,10 @@ async function main() {
   const deployerAddress = deployerKey ? new Wallet(deployerKey).address : FALLBACK_FROM;
   const treasuryAddress = process.env.TREASURY_ADDRESS || deployerAddress;
   const startNonce = deployerKey ? await hre.ethers.provider.getTransactionCount(deployerAddress, "pending") : 0;
-  const addresses = [0, 1, 2].map((offset) => getCreateAddress({ from: deployerAddress, nonce: startNonce + offset }));
-  const jobs = [
+  const addresses = [0, 1, 2, 3].map((offset) => getCreateAddress({ from: deployerAddress, nonce: startNonce + offset }));
+  const artifactExists = await fs.stat(TESTNET_DEPLOYMENT_PATH).then(() => true).catch(() => false);
+  const existingDeployment: TestnetDeployment | undefined = artifactExists ? await readTestnetDeployment() : undefined;
+  const jobs: Array<{ name: string; file: string; args: unknown[] }> = existingDeployment ? [] : [
     {
       name: "VoltToken",
       file: "artifacts/contracts/VoltToken.sol/VoltToken.json",
@@ -43,6 +48,28 @@ async function main() {
       args: [addresses[1]],
     },
   ];
+  const unestimatedContracts: string[] = [];
+  if (existingDeployment?.contracts.HouseScreeningDemoCertificate) {
+    // The current artifact is already complete, so no deployment transaction is planned.
+  } else if (existingDeployment?.contracts.VoltGridMarket) {
+    jobs.push({
+      name: "HouseScreeningDemoCertificate",
+      file: "artifacts/contracts/HouseScreeningDemoCertificate.sol/HouseScreeningDemoCertificate.json",
+      args: [existingDeployment.contracts.VoltGridMarket.address],
+    });
+  } else {
+    const estimateMarket = process.env.NEXT_PUBLIC_VOLT_MARKET_ADDRESS;
+    const estimateMarketCode = estimateMarket ? await hre.ethers.provider.getCode(estimateMarket).catch(() => "0x") : "0x";
+    if (estimateMarket && estimateMarketCode !== "0x") {
+      jobs.push({
+        name: "HouseScreeningDemoCertificate",
+        file: "artifacts/contracts/HouseScreeningDemoCertificate.sol/HouseScreeningDemoCertificate.json",
+        args: [estimateMarket],
+      });
+    } else {
+      unestimatedContracts.push("HouseScreeningDemoCertificate (constructor gas estimate requires a market address with deployed code)");
+    }
+  }
 
   let totalGas = 0n;
   const estimates: Array<{ contract: string; gas: string; nativeAtCurrentPrice: string }> = [];
@@ -64,7 +91,9 @@ async function main() {
   }
   const bufferedGas = totalGas * 150n / 100n;
   const report: Record<string, unknown> = {
-    mode: "read-only deployment preflight; no transaction broadcast",
+    mode: existingDeployment?.contracts.HouseScreeningDemoCertificate
+      ? "read-only preflight; complete testnet artifact found; no deployment transaction planned"
+      : "read-only deployment preflight; no transaction broadcast",
     rpcHost: new URL(process.env.MST_RPC_URL || MST_TESTNET_RPC).host,
     configuredChainId: Number(process.env.MST_CHAIN_ID || MST_TESTNET_CHAIN_ID),
     observedChainId: network.chainId.toString(),
@@ -75,11 +104,12 @@ async function main() {
     currencyLabel: "Official site/faucet use MSTC; a distinct testnet wallet ticker is not published in accessible first-party docs. Repository tMSTC label remains provisional.",
     deployerAddress: deployerKey ? deployerAddress : "not configured; estimate uses a non-funded placeholder sender",
     contracts: estimates,
+    unestimatedContracts,
     totalDeploymentGas: totalGas.toString(),
     bufferedDeploymentGas50Percent: bufferedGas.toString(),
     bufferedDeploymentNativeAtCurrentPrice: formatEther(bufferedGas * fee.gasPrice),
     measuredLocalHeatwaveDayGas: "6064577",
-    note: "Testnet estimate is initcode-only. It does not include role grants, VLT seeding, or user/relayer day transactions. Do not use as the final funding threshold; rerun with funded deployer/oracle keys to include balance checks.",
+    note: "Testnet estimate is initcode-only. An unestimated contract is excluded from the gas total. It does not include role grants, VLT seeding, or user/relayer day transactions. Do not use as the final funding threshold; rerun with funded deployer/oracle keys to include balance checks.",
   };
   if (deployerKey) {
     const balance = await hre.ethers.provider.getBalance(deployerAddress);

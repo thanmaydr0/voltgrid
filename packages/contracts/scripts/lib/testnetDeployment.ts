@@ -38,7 +38,7 @@ export type TestnetDeployment = {
   deployerAddress: string;
   treasuryAddress: string;
   compiler: Readonly<{ version: "0.8.20"; evmVersion: "paris"; optimizerRuns: 200; viaIR: true }>;
-  contracts: Partial<Record<"VoltToken" | "VoltGridMarket" | "CarbonCertificate", TestnetContractRecord>>;
+  contracts: Partial<Record<"VoltToken" | "VoltGridMarket" | "CarbonCertificate" | "HouseScreeningDemoCertificate", TestnetContractRecord>>;
   transactions: {
     certificateBinding?: ConfirmedTx & { certificateAddress: string; observedAfterRestart?: boolean };
     roleGrants?: Record<string, { target: string; status: "confirmed" | "already-held"; tx?: ConfirmedTx }>;

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { type Hash } from "viem";
+import { type Address, type Hash } from "viem";
 import { useAccount, usePublicClient, useReadContract, useWriteContract } from "wagmi";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -11,7 +11,9 @@ import { Input } from "@/components/ui/input";
 import { ConnectButton } from "@/components/ConnectButton";
 import { NetworkSwitcher } from "@/components/NetworkSwitcher";
 import { NetworkWarning } from "@/components/NetworkWarning";
+import { HouseScreeningDemoCredentialPanel } from "@/components/house/HouseScreeningDemoCredentialPanel";
 import { SolarBillOcrDemo } from "@/components/house/SolarBillOcrDemo";
+import type { HouseScreeningDraft } from "@/components/house/house-screening-demo";
 import { SolarCertificateEvidenceNotice } from "@/components/house/SolarCertificateEvidenceNotice";
 import { mstTestnet } from "@/lib/chains";
 import { contractAddresses } from "@/lib/addresses";
@@ -34,6 +36,7 @@ type RegistrationStep = "readiness" | "declaration" | "review" | "sign" | "recei
 type RegistrationTx = {
   readonly stage: "wallet" | "receipt" | "confirmed" | "unknown" | "reverted" | "error";
   readonly hash?: Hash;
+  readonly houseAddress?: Address;
   readonly message?: string;
   readonly technical?: string;
 };
@@ -77,6 +80,7 @@ export function HouseRegistrationWizard() {
   const [capacityInput, setCapacityInput] = useState("");
   const [reviewedDeclaration, setReviewedDeclaration] = useState<HouseDeclaration>();
   const [tx, setTx] = useState<RegistrationTx>();
+  const [screeningDraft, setScreeningDraft] = useState<HouseScreeningDraft>();
   const [billVerificationOpen, setBillVerificationOpen] = useState(true);
   const billVerificationDialogRef = useRef<HTMLDialogElement>(null);
   const verificationRef = useRef<((receipt: ReceiptLike) => Promise<void>) | null>(null);
@@ -122,37 +126,44 @@ export function HouseRegistrationWizard() {
   const busy = transactionIsInFlight(tx?.stage);
   const signDeclaration = reviewedDeclaration ?? declaration;
 
-  async function rereadHouse(): Promise<void> {
-    const result = await house.refetch();
-    const state = parseHouseSnapshot(result.data);
-    if (result.isError || !state) throw new Error("Registration receipt succeeded, but houses(address) could not be re-read.");
-    if (!state.exists || state.hasSolar !== signDeclaration.hasSolar || state.hasBattery !== signDeclaration.hasBattery || state.batteryCapacityWh !== signDeclaration.batteryCapacityWh) {
+  async function rereadHouse(ownerAddress: Address, reviewed: HouseDeclaration): Promise<void> {
+    if (!publicClient || !marketAddress) throw new Error("Registration receipt succeeded, but the MST Testnet registry reader is unavailable.");
+    const result = await publicClient.readContract({
+      address: marketAddress,
+      abi: VOLT_GRID_MARKET_ABI,
+      functionName: "houses",
+      args: [ownerAddress],
+    });
+    const state = parseHouseSnapshot(result);
+    if (!state) throw new Error("Registration receipt succeeded, but houses(address) could not be re-read.");
+    if (!state.exists || state.hasSolar !== reviewed.hasSolar || state.hasBattery !== reviewed.hasBattery || state.batteryCapacityWh !== reviewed.batteryCapacityWh) {
       throw new Error("Registration event/state mismatch: houses(address) does not match the reviewed declaration.");
     }
   }
 
-  async function confirmHash(hash: Hash, verify: (receipt: ReceiptLike) => Promise<void>) {
+  async function confirmHash(hash: Hash, verify: (receipt: ReceiptLike) => Promise<void>, registrationAddress: Address) {
     if (!publicClient || !marketAddress) {
-      setTx({ stage: "unknown", hash, message: "The receipt client is unavailable. Keep this hash and reconcile it when MST Testnet RPC is available.", technical: "No configured MST Testnet public client or market address" });
+      setTx({ stage: "unknown", hash, houseAddress: registrationAddress, message: "The receipt client is unavailable. Keep this hash and reconcile it when MST Testnet RPC is available.", technical: "No configured MST Testnet public client or market address" });
       return;
     }
-    setTx({ stage: "receipt", hash });
+    setTx({ stage: "receipt", hash, houseAddress: registrationAddress });
     const result = await reconcileReceipt(hash, () => publicClient.waitForTransactionReceipt({ hash }) as unknown as Promise<ReceiptLike>, verify);
     if (result.stage === "reverted") {
       const friendly = describeWalletError(new Error("Transaction receipt status was reverted"));
-      setTx({ stage: "reverted", hash, message: friendly.message, technical: friendly.technical });
+      setTx({ stage: "reverted", hash, houseAddress: registrationAddress, message: friendly.message, technical: friendly.technical });
       return;
     }
     if (result.stage === "unknown") {
       const friendly = describeWalletError(result.error);
-      setTx({ stage: "unknown", hash, message: friendly.kind === "unknown" ? "The receipt could not be confirmed from the expected event and state." : friendly.message, technical: friendly.technical ?? errorText(result.error) });
+      setTx({ stage: "unknown", hash, houseAddress: registrationAddress, message: friendly.kind === "unknown" ? "The receipt could not be confirmed from the expected event and state." : friendly.message, technical: friendly.technical ?? errorText(result.error) });
       return;
     }
-    setTx({ stage: "confirmed", hash, message: "On-chain registration confirmed: successful receipt, matching HouseRegistered event, and matching houses(address) state." });
+    setTx({ stage: "confirmed", hash, houseAddress: registrationAddress, message: "On-chain house declaration confirmed: successful receipt, matching HouseRegistered event, and matching houses(address) state." });
   }
 
   async function submitRegistration() {
     if (!marketAddress || !address || !readiness.canSign || !reviewedDeclaration || busy) return;
+    const registrationAddress = address;
     const reviewed = reviewedDeclaration;
     if (validateDeclaration(reviewed)) {
       setTx({ stage: "error", message: "The reviewed declaration is invalid. Return to declaration and correct the battery capacity." });
@@ -160,15 +171,15 @@ export function HouseRegistrationWizard() {
     }
     setStep("sign");
     const verify = async (receipt: ReceiptLike) => {
-      const event = findHouseRegisteredEvent(receipt.logs, marketAddress, address);
-      if (!event || !declarationMatchesEvent(reviewed, event, address)) throw new Error("event mismatch: expected HouseRegistered from the configured market for the reviewed account and fields.");
-      await rereadHouse();
+      const event = findHouseRegisteredEvent(receipt.logs, marketAddress, registrationAddress);
+      if (!event || !declarationMatchesEvent(reviewed, event, registrationAddress)) throw new Error("event mismatch: expected HouseRegistered from the configured market for the reviewed account and fields.");
+      await rereadHouse(registrationAddress, reviewed);
     };
     verificationRef.current = verify;
-    setTx({ stage: "wallet", message: "Review the exact declaration in your wallet and sign registerHouse." });
+    setTx({ stage: "wallet", houseAddress: registrationAddress, message: "Review the exact declaration in your wallet and sign registerHouse." });
     try {
       const hash = await writeContractAsync({ address: marketAddress, abi: VOLT_GRID_MARKET_ABI, functionName: "registerHouse", args: [reviewed.hasSolar, reviewed.hasBattery, reviewed.batteryCapacityWh], chainId: mstTestnet.id });
-      await confirmHash(hash, verify);
+      await confirmHash(hash, verify, registrationAddress);
     } catch (error) {
       const friendly = describeWalletError(error);
       setTx({ stage: "error", message: friendly.message, technical: friendly.technical });
@@ -177,7 +188,8 @@ export function HouseRegistrationWizard() {
 
   async function reconcile() {
     if (!tx?.hash || tx.stage !== "unknown" || !verificationRef.current || busy) return;
-    await confirmHash(tx.hash, verificationRef.current);
+    if (!tx.houseAddress) return;
+    await confirmHash(tx.hash, verificationRef.current, tx.houseAddress);
   }
 
   const stepIndex = steps.findIndex((item) => item.key === step);
@@ -201,7 +213,12 @@ export function HouseRegistrationWizard() {
               This demo looks for solar and net-metering clues before you continue. The official DISCOM/SNA rooftop commissioning certificate is still the primary verification evidence; bill OCR cannot verify a house or its owner.
             </p>
           </header>
-          <SolarBillOcrDemo />
+          <SolarBillOcrDemo onScreeningAccepted={(draft) => {
+            setScreeningDraft(draft);
+            setHasSolar(true);
+            setStep("declaration");
+            setBillVerificationOpen(false);
+          }} />
           <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
             <p className="max-w-xl text-xs text-muted-foreground">You can continue without a bill. House registration remains a model declaration and will not mark the property verified.</p>
             <Button type="button" onClick={() => setBillVerificationOpen(false)}>Continue to registration</Button>
@@ -247,7 +264,7 @@ export function HouseRegistrationWizard() {
         <div className="flex flex-wrap gap-3"><Button variant="outline" onClick={() => setStep("declaration")} disabled={busy}>Edit declaration</Button><Button onClick={() => void submitRegistration()} disabled={!canContinue || !reviewedDeclaration}>Open wallet to sign registration</Button></div>
       </CardContent></Card>}
 
-      {(step === "sign" || step === "receipt") && <Card><CardHeader><CardTitle>{tx?.stage === "confirmed" ? "Registration verified" : "Wallet-sign and receipt verification"}</CardTitle><CardDescription>Only a successful receipt, matching HouseRegistered event from the expected market, and matching houses(address) state can become confirmed.</CardDescription></CardHeader><CardContent className="space-y-4"><RegistrationTransaction tx={tx} onReconcile={() => void reconcile()} />{tx?.stage === "confirmed" && <div className="flex flex-wrap gap-3"><Link href="/house"><Button>View house status</Button></Link><Link href="/wallet"><Button variant="outline">Open wallet</Button></Link></div>}{tx?.stage === "error" && <Button variant="outline" onClick={() => setStep("review")}>Return to review</Button>}</CardContent></Card>}
+      {(step === "sign" || step === "receipt") && <Card><CardHeader><CardTitle>{tx?.stage === "confirmed" ? "House declaration confirmed" : "Wallet-sign and receipt verification"}</CardTitle><CardDescription>Only a successful receipt, matching HouseRegistered event from the expected market, and matching houses(address) state can confirm the on-chain model declaration. This is not physical or official house verification.</CardDescription></CardHeader><CardContent className="space-y-4"><RegistrationTransaction tx={tx} onReconcile={() => void reconcile()} />{tx?.stage === "confirmed" && <div className="space-y-4"><div className="flex flex-wrap gap-3"><Link href="/house"><Button>View house status</Button></Link><Link href="/wallet"><Button variant="outline">Open wallet</Button></Link></div>{screeningDraft && tx.houseAddress && reviewedDeclaration?.hasSolar && <HouseScreeningDemoCredentialPanel houseAddress={tx.houseAddress} draft={screeningDraft} />}{screeningDraft && !reviewedDeclaration?.hasSolar && <p className="rounded-md border border-border p-3 text-sm" role="status">The final on-chain declaration says no solar. The earlier OCR phrase match does not override it, so no house screening demo credential can be minted.</p>}</div>}{tx?.stage === "error" && <Button variant="outline" onClick={() => setStep("review")}>Return to review</Button>}</CardContent></Card>}
     </main>
   );
 }

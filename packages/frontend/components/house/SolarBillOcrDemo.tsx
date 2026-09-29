@@ -3,6 +3,7 @@
 import { useId, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import type { HouseScreeningDraft } from "@/components/house/house-screening-demo";
 
 const MAX_FILE_BYTES = 10 * 1024 * 1024;
 const MAX_PDF_PAGES = 3;
@@ -76,7 +77,7 @@ async function createBoundedImageCanvas(file: File) {
   return canvas;
 }
 
-export function SolarBillOcrDemo() {
+export function SolarBillOcrDemo({ onScreeningAccepted }: { onScreeningAccepted?: (draft: HouseScreeningDraft) => void }) {
   const inputId = useId();
   const inputRef = useRef<HTMLInputElement>(null);
   const processingRef = useRef(false);
@@ -85,6 +86,8 @@ export function SolarBillOcrDemo() {
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<OcrResult | null>(null);
+  const [shareConsent, setShareConsent] = useState(false);
+  const [preparingCredential, setPreparingCredential] = useState(false);
 
   const busy = stage === "loading" || stage === "scanning";
 
@@ -92,6 +95,7 @@ export function SolarBillOcrDemo() {
     setFile(selected);
     setError(null);
     setResult(null);
+    setShareConsent(false);
     setStage("idle");
     setProgress(0);
     if (!selected) return;
@@ -118,6 +122,7 @@ export function SolarBillOcrDemo() {
     setProgress(0);
     setError(null);
     setResult(null);
+    setShareConsent(false);
 
     let worker: Awaited<ReturnType<(typeof import("tesseract.js"))["createWorker"]>> | null = null;
     try {
@@ -204,12 +209,37 @@ export function SolarBillOcrDemo() {
     }
   }
 
+  async function acceptForTestnetDemo() {
+    if (!file || !result || result.signals.length < 2 || !shareConsent || preparingCredential || !onScreeningAccepted) return;
+    setPreparingCredential(true);
+    setError(null);
+    try {
+      if (!globalThis.crypto?.subtle || !globalThis.crypto?.getRandomValues) {
+        throw new Error("Secure browser cryptography is unavailable.");
+      }
+      const salt = globalThis.crypto.getRandomValues(new Uint8Array(32));
+      const fileDigest = new Uint8Array(await globalThis.crypto.subtle.digest("SHA-256", await file.arrayBuffer()));
+      const commitmentInput = new Uint8Array(salt.length + fileDigest.length);
+      commitmentInput.set(salt);
+      commitmentInput.set(fileDigest, salt.length);
+      const commitment = new Uint8Array(await globalThis.crypto.subtle.digest("SHA-256", commitmentInput));
+      const toHex = (bytes: Uint8Array) => `0x${Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("")}` as `0x${string}`;
+      const signalFlags = result.signals.reduce((flags, signal) => flags | (signal === "solar" ? 1 : signal === "export" ? 2 : signal === "net-units" ? 4 : 0), 0);
+      onScreeningAccepted({ documentCommitment: toHex(commitment), commitmentSalt: toHex(salt), signalFlags });
+    } catch {
+      setError("Could not create a private, salted document fingerprint in this browser. Nothing was submitted; try again in a secure browser context.");
+    } finally {
+      setPreparingCredential(false);
+    }
+  }
+
   function reset() {
     if (processingRef.current) return;
     if (inputRef.current) inputRef.current.value = "";
     setFile(null);
     setError(null);
     setResult(null);
+    setShareConsent(false);
     setStage("idle");
     setProgress(0);
   }
@@ -258,7 +288,7 @@ export function SolarBillOcrDemo() {
       {result && (
         <div className="space-y-2 rounded-md border border-border p-3" role="status" aria-live="polite">
           <p className="font-medium">
-            {result.signals.length >= 2 ? "Possible supporting bill clues found" : result.signals.length === 1 ? "One possible bill clue found" : "No matching bill phrases detected"}
+            {result.signals.length >= 2 ? "Testnet demo screening rule matched" : result.signals.length === 1 ? "One possible bill clue found" : "No matching bill phrases detected"}
           </p>
           {matchedLabels.length > 0 ? (
             <ul className="list-disc space-y-1 pl-5 text-sm">{matchedLabels.map((label) => <li key={label}>{label}</li>)}</ul>
@@ -271,6 +301,19 @@ export function SolarBillOcrDemo() {
           </p>
           <p className="text-sm font-semibold">Bill screening only — the house remains <strong>not verified in VoltGrid</strong>.</p>
           <p className="text-xs text-muted-foreground">For a real verification decision, review the official DISCOM/SNA commissioning certificate and owner-accessible DISCOM account. A bill phrase cannot prove identity, ownership, installation, or issuer authenticity.</p>
+          {result.signals.length >= 2 && onScreeningAccepted && (
+            <div className="space-y-3 border-t border-border pt-3">
+              <p className="text-sm font-semibold">Optional testnet certificate</p>
+              <p className="text-xs text-muted-foreground">This creates a non-transferable demo token only after you separately register and sign with this wallet. Its on-chain metadata states that screening was client-side and not official verification.</p>
+              <label className="flex items-start gap-2 text-xs leading-5">
+                <input type="checkbox" checked={shareConsent} onChange={(event) => setShareConsent(event.currentTarget.checked)} className="mt-1" />
+                <span>I consent to publishing my wallet, a salted bill-file fingerprint, and these OCR clue categories on the public MST testnet. The bill and raw OCR text are not published. I understand the token is a non-official hackathon demo and the fingerprint is permanent on this network.</span>
+              </label>
+              <Button type="button" variant="outline" onClick={() => void acceptForTestnetDemo()} disabled={!shareConsent || preparingCredential}>
+                {preparingCredential ? "Preparing private fingerprint…" : "Use screening for testnet registration"}
+              </Button>
+            </div>
+          )}
         </div>
       )}
       <p className="text-xs text-muted-foreground">For this demo, only the first {MAX_PDF_PAGES} PDF pages are scanned. Nothing is persisted; use Clear to release the selected file from this page.</p>

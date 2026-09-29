@@ -42,6 +42,16 @@
       "constructorArguments": [
         "0xe7f944785De4D7936ae21a1F5Af47BDC7B775Ae6"
       ]
+    },
+    "HouseScreeningDemoCertificate": {
+      "address": "0xe2A3e509B43aC4b1d3B7bD088985BbBa03Df7e6a",
+      "deployTxHash": "0xb4d73f595524b7f4ea9912936bd56248de0126a59739c9954f14d0fb6155bd07",
+      "blockNumber": "5799977",
+      "gasUsed": "1563711",
+      "runtimeCodeHash": "0x4422a44c02ffe35f6b42a75cae084c3834e0fde2dd661bda863d10197a18b469",
+      "constructorArguments": [
+        "0xe7f944785De4D7936ae21a1F5Af47BDC7B775Ae6"
+      ]
     }
   },
   "transactions": {

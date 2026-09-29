@@ -16,7 +16,7 @@ async function main() {
   const deployerAddress = getAddress(await deployer.getAddress());
   if (deployerAddress.toLowerCase() !== deployment.deployerAddress.toLowerCase()) throw new Error("Configured signer differs from deployment artifact admin");
 
-  for (const name of ["VoltToken", "VoltGridMarket", "CarbonCertificate"] as const) {
+  for (const name of ["VoltToken", "VoltGridMarket", "CarbonCertificate", "HouseScreeningDemoCertificate"] as const) {
     const record = deployment.contracts[name];
     if (!record) throw new Error(`Deployment artifact is missing ${name}`);
     const receipt = await hre.ethers.provider.getTransactionReceipt(record.deployTxHash);
@@ -30,14 +30,21 @@ async function main() {
   const tokenRecord = deployment.contracts.VoltToken!;
   const marketRecord = deployment.contracts.VoltGridMarket!;
   const certificateRecord = deployment.contracts.CarbonCertificate!;
+  const demoCredentialRecord = deployment.contracts.HouseScreeningDemoCertificate;
   const token = await hre.ethers.getContractAt("VoltToken", tokenRecord.address);
   const market = await hre.ethers.getContractAt("VoltGridMarket", marketRecord.address);
   const certificate = await hre.ethers.getContractAt("CarbonCertificate", certificateRecord.address);
+  if (!demoCredentialRecord) throw new Error("Deployment artifact is missing HouseScreeningDemoCertificate");
+  const demoCredential = await hre.ethers.getContractAt("HouseScreeningDemoCertificate", demoCredentialRecord.address);
   if (await token.name() !== "VoltCredit" || await token.symbol() !== "VLT" || await token.decimals() !== 18n) throw new Error("VoltToken metadata differs from the expected ABI/state");
   if (getAddress(await market.settlementToken()) !== getAddress(tokenRecord.address)) throw new Error("Market settlement-token address mismatch");
   if (getAddress(await market.treasury()) !== getAddress(deployment.treasuryAddress)) throw new Error("Market treasury address mismatch");
   if (getAddress(await certificate.market()) !== getAddress(marketRecord.address)) throw new Error("Certificate immutable market address mismatch");
   if (getAddress(await market.carbonCertificate()) !== getAddress(certificateRecord.address)) throw new Error("Market/certificate binding mismatch");
+  if (getAddress(await demoCredential.market()) !== getAddress(marketRecord.address)) throw new Error("House screening demo credential is bound to a different market");
+  if (await demoCredential.name() !== "VoltGrid House Screening Demo (Testnet)" || await demoCredential.symbol() !== "VGHS-DEMO") {
+    throw new Error("House screening demo credential metadata differs from the expected testnet-only contract");
+  }
   const marketDeployReceipt = await hre.ethers.provider.getTransactionReceipt(marketRecord.deployTxHash);
   const marketCode = await hre.ethers.provider.getCode(marketRecord.address);
   if (keccak256(marketCode).toLowerCase() !== marketRecord.runtimeCodeHash.toLowerCase()) throw new Error("Market code hash changed after the direct check");
