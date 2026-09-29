@@ -78,6 +78,14 @@ export type HouseScreeningChainData = Readonly<{
   readonly signalFlags: number;
 }>;
 
+export function screeningSignalFlags(signalIds: readonly string[]): number {
+  return signalIds.reduce((flags, signal) => flags | (signal === "solar" ? 1 : signal === "export" ? 2 : signal === "net-units" ? 4 : 0), 0);
+}
+
+export function isDemoScreeningPass(signalFlags: number): boolean {
+  return Number.isInteger(signalFlags) && signalFlags >= 1 && signalFlags <= 7;
+}
+
 export function screeningSignalLabels(flags: number): string[] {
   return [
     (flags & 1) !== 0 ? "solar/net-metering clue" : undefined,

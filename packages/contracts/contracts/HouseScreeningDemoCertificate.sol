@@ -61,7 +61,7 @@ contract HouseScreeningDemoCertificate is ERC721 {
     /// @notice Mints an explicitly non-official demonstration token to the caller's registered solar house wallet.
     /// @dev The contract cannot validate browser OCR or the source document; flags and commitment are caller supplied.
     function mintDemoScreening(bytes32 documentCommitment, uint8 signalFlags) external returns (uint256 tokenId) {
-        if (documentCommitment == bytes32(0) || (signalFlags & 0xf8) != 0 || _signalCount(signalFlags) < 2) {
+        if (documentCommitment == bytes32(0) || (signalFlags & 0xf8) != 0 || signalFlags == 0) {
             revert InvalidScreeningData();
         }
         (bool exists, bool hasSolar,,,,) = market.houses(msg.sender);
@@ -101,12 +101,6 @@ contract HouseScreeningDemoCertificate is ERC721 {
             "{\"trait_type\":\"officialVerification\",\"value\":false}]}"
         ));
         return string(abi.encodePacked("data:application/json;base64,", Base64.encode(bytes(json))));
-    }
-
-    function _signalCount(uint8 flags) private pure returns (uint8 count) {
-        if ((flags & SOLAR_SIGNAL) != 0) count += 1;
-        if ((flags & EXPORT_SIGNAL) != 0) count += 1;
-        if ((flags & NET_UNITS_SIGNAL) != 0) count += 1;
     }
 
     function _update(address to, uint256 tokenId, address auth) internal override returns (address) {

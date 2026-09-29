@@ -46,12 +46,12 @@ type DeploymentJournal = {
   chainId: number;
   deployerAddress: string;
   treasuryAddress: string;
-  contracts: Partial<Record<"VoltToken" | "VoltGridMarket" | "CarbonCertificate" | "HouseScreeningDemoCertificate", DeploymentIntent>>;
+  contracts: Partial<Record<"VoltToken" | "VoltGridMarket" | "CarbonCertificate" | "HouseScreeningDemoCertificate" | "HouseScreeningDemoCertificateV2", DeploymentIntent>>;
   certificateBinding?: CallIntent;
 };
 
 const CORE_CONTRACT_NAMES = ["VoltToken", "VoltGridMarket", "CarbonCertificate"] as const;
-const CONTRACT_NAMES = [...CORE_CONTRACT_NAMES, "HouseScreeningDemoCertificate"] as const;
+const CONTRACT_NAMES = [...CORE_CONTRACT_NAMES, "HouseScreeningDemoCertificate", "HouseScreeningDemoCertificateV2"] as const;
 
 async function saveJournal(journal: DeploymentJournal): Promise<void> {
   await writeJsonAtomic(TESTNET_JOURNAL_PATH, journal);
@@ -288,6 +288,15 @@ async function main() {
         if (code === "0x" || keccak256(code).toLowerCase() !== demoRecord.runtimeCodeHash.toLowerCase()) {
           throw new Error("Existing HouseScreeningDemoCertificate artifact does not match current on-chain bytecode");
         }
+      }
+      const demoV2Record = artifact.contracts.HouseScreeningDemoCertificateV2;
+      if (demoV2Record) {
+        const code = await hre.ethers.provider.getCode(demoV2Record.address);
+        if (code === "0x" || keccak256(code).toLowerCase() !== demoV2Record.runtimeCodeHash.toLowerCase()) {
+          throw new Error("Existing HouseScreeningDemoCertificateV2 artifact does not match current on-chain bytecode");
+        }
+      }
+      if (demoV2Record || artifact.houseScreeningRuleVersion === 2) {
         process.stdout.write("MST Testnet deployment, including the house screening demo credential, already exists and bytecode checks pass; no transaction sent.\n");
         return;
       }
@@ -316,10 +325,14 @@ async function main() {
 
     if (priorDeployment) {
       const DemoCertificate = await hre.ethers.getContractFactory("HouseScreeningDemoCertificate", deployer);
-      const demo = await deployContract("HouseScreeningDemoCertificate", DemoCertificate, [priorDeployment.contracts.VoltGridMarket!.address], journal, hre.ethers.provider, deployerAddress);
+      const demoName = priorDeployment.contracts.HouseScreeningDemoCertificate
+        ? "HouseScreeningDemoCertificateV2"
+        : "HouseScreeningDemoCertificate";
+      const demo = await deployContract(demoName, DemoCertificate, [priorDeployment.contracts.VoltGridMarket!.address], journal, hre.ethers.provider, deployerAddress);
       await writeTestnetDeployment({
         ...priorDeployment,
-        contracts: { ...priorDeployment.contracts, HouseScreeningDemoCertificate: demo },
+        houseScreeningRuleVersion: 2,
+        contracts: { ...priorDeployment.contracts, [demoName]: demo },
       });
       await fs.unlink(TESTNET_JOURNAL_PATH).catch(() => undefined);
       process.stdout.write("Confirmed MST Testnet house screening demo credential deployment.\n");
@@ -345,6 +358,7 @@ async function main() {
       explorerBaseUrl: MST_TESTNET_EXPLORER,
       deployerAddress,
       treasuryAddress,
+      houseScreeningRuleVersion: 2,
       compiler: { version: "0.8.20", evmVersion: "paris", optimizerRuns: 200, viaIR: true },
       contracts: { VoltToken: token, VoltGridMarket: market, CarbonCertificate: certificate, HouseScreeningDemoCertificate: demo },
       transactions: {
@@ -359,8 +373,7 @@ async function main() {
     await writeTestnetDeployment(deployment);
     await fs.unlink(TESTNET_JOURNAL_PATH).catch(() => undefined);
     process.stdout.write(`Confirmed MST Testnet deployment artifact: ${TESTNET_DEPLOYMENT_PATH}\n`);
-    for (const name of CONTRACT_NAMES) {
-      const record = deployment.contracts[name]!;
+    for (const [name, record] of Object.entries(deployment.contracts)) {
       process.stdout.write(`${name} ${record.address} tx=${record.deployTxHash} block=${record.blockNumber} gas=${record.gasUsed}\n`);
     }
     process.stdout.write(`CarbonCertificate binding tx=${binding.hash} block=${binding.blockNumber}\n`);

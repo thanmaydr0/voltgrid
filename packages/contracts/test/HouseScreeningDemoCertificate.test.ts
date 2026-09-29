@@ -44,7 +44,7 @@ describe("HouseScreeningDemoCertificate", () => {
       .to.be.revertedWithCustomError(certificate, "CredentialAlreadyIssued");
   });
 
-  it("rejects unregistered houses, non-solar declarations, and weak OCR flags", async () => {
+  it("rejects unregistered houses, non-solar declarations, empty or unsupported OCR flags", async () => {
     const { ordinaryHouse, solarHouse, market, certificate } = await deploy();
     const commitment = ethers.id("bill");
     await expect(certificate.connect(ordinaryHouse).mintDemoScreening(commitment, 3))
@@ -55,10 +55,20 @@ describe("HouseScreeningDemoCertificate", () => {
       .to.be.revertedWithCustomError(certificate, "SolarNotDeclared");
 
     await market.connect(solarHouse).registerHouse(true, false, 0);
-    await expect(certificate.connect(solarHouse).mintDemoScreening(commitment, 1))
+    await expect(certificate.connect(solarHouse).mintDemoScreening(commitment, 0))
       .to.be.revertedWithCustomError(certificate, "InvalidScreeningData");
     await expect(certificate.connect(solarHouse).mintDemoScreening(commitment, 0xff))
       .to.be.revertedWithCustomError(certificate, "InvalidScreeningData");
+  });
+
+  it("accepts one actual matched OCR clue as a demo pass without inventing additional signal flags", async () => {
+    const { solarHouse, market, certificate } = await deploy();
+    await market.connect(solarHouse).registerHouse(true, false, 0);
+    const commitment = ethers.id("single-solar-clue");
+    await expect(certificate.connect(solarHouse).mintDemoScreening(commitment, 1))
+      .to.emit(certificate, "HouseScreeningDemoMinted")
+      .withArgs(solarHouse.address, 1, commitment, 1);
+    expect((await certificate.screeningData(1)).signalFlags).to.equal(1);
   });
 
   it("rejects a zero market address and an address without contract code", async () => {

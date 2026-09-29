@@ -10,9 +10,9 @@ export const contractAddresses = {
   token: configuredAddress(process.env.NEXT_PUBLIC_VOLT_TOKEN_ADDRESS),
   market: configuredAddress(process.env.NEXT_PUBLIC_VOLT_MARKET_ADDRESS),
   certificate: configuredAddress(process.env.NEXT_PUBLIC_VOLT_CERTIFICATE_ADDRESS),
-  // Confirmed additive deployment on MST Testnet (chain 91562037), never mainnet.
+  // One-clue demo rule v2 is a confirmed additive MST Testnet deployment, never mainnet.
   houseScreeningDemo: configuredAddress(process.env.NEXT_PUBLIC_VOLT_HOUSE_SCREENING_DEMO_ADDRESS)
-    ?? configuredAddress("0xe2A3e509B43aC4b1d3B7bD088985BbBa03Df7e6a"),
+    ?? configuredAddress("0xC4b5f5b51BB763d7447FA7f883bbC777aacd3994"),
 } as const;
 
 export const hasContractAddresses = Boolean(contractAddresses.token && contractAddresses.market);

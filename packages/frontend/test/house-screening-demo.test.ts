@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { confirmedScreeningRecordMatches, screeningSignalLabels, type HouseScreeningDraft, type HouseScreeningReceipt } from "../components/house/house-screening-demo";
+import { confirmedScreeningRecordMatches, isDemoScreeningPass, screeningSignalFlags, screeningSignalLabels, type HouseScreeningDraft, type HouseScreeningReceipt } from "../components/house/house-screening-demo";
 import type { Hex } from "viem";
 
 const wallet = "0x1111111111111111111111111111111111111111" as const;
@@ -22,6 +22,14 @@ test("OCR clue flags render only the categories actually recorded", () => {
   assert.deepEqual(screeningSignalLabels(3), ["solar/net-metering clue", "exported-energy clue"]);
   assert.deepEqual(screeningSignalLabels(4), ["net/imported-units clue"]);
   assert.deepEqual(screeningSignalLabels(0), []);
+});
+
+test("one real OCR clue is enough for a clearly-labeled testnet demo screening pass", () => {
+  assert.equal(screeningSignalFlags(["solar"]), 1);
+  assert.equal(isDemoScreeningPass(screeningSignalFlags(["solar"])), true);
+  assert.equal(isDemoScreeningPass(screeningSignalFlags(["export"])), true);
+  assert.equal(isDemoScreeningPass(screeningSignalFlags([])), false);
+  assert.equal(isDemoScreeningPass(8), false);
 });
 
 test("a screening credential is confirmed only when receipt, event and fresh chain data agree", () => {

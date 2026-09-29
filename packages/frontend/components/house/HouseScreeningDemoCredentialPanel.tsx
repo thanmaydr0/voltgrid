@@ -232,6 +232,6 @@ export function HouseScreeningDemoCredentialPanel({
       {tx.status === "unknown" && tx.hash && <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => void reconcile(tx.hash!)}>Reconcile this receipt</Button>}
     </div>}
 
-    {configured && isConnected && address && tokenId === BigInt(0) && !draft && !tokenQuery.isLoading && !tokenQuery.isError && <p className="text-sm text-muted-foreground">This wallet has no screening demo credential. A credential can only be minted after a solar house declaration is registered and its bill passes the local demo OCR rule.</p>}
+    {configured && isConnected && address && tokenId === BigInt(0) && !draft && !tokenQuery.isLoading && !tokenQuery.isError && <p className="text-sm text-muted-foreground">This wallet has no screening demo credential. A credential can only be minted after a solar house declaration is registered and at least one bill clue passes the local demo screening rule.</p>}
   </section>;
 }

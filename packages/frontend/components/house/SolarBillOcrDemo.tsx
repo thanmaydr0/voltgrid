@@ -3,7 +3,7 @@
 import { useId, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import type { HouseScreeningDraft } from "@/components/house/house-screening-demo";
+import { isDemoScreeningPass, screeningSignalFlags, type HouseScreeningDraft } from "@/components/house/house-screening-demo";
 
 const MAX_FILE_BYTES = 10 * 1024 * 1024;
 const MAX_PDF_PAGES = 3;
@@ -77,7 +77,15 @@ async function createBoundedImageCanvas(file: File) {
   return canvas;
 }
 
-export function SolarBillOcrDemo({ onScreeningAccepted }: { onScreeningAccepted?: (draft: HouseScreeningDraft) => void }) {
+export function SolarBillOcrDemo({
+  onScreeningDraftChange,
+  onConsentChange,
+  onPreparationChange,
+}: {
+  onScreeningDraftChange?: (draft?: HouseScreeningDraft) => void;
+  onConsentChange?: (consented: boolean) => void;
+  onPreparationChange?: (preparing: boolean) => void;
+}) {
   const inputId = useId();
   const inputRef = useRef<HTMLInputElement>(null);
   const processingRef = useRef(false);
@@ -96,6 +104,8 @@ export function SolarBillOcrDemo({ onScreeningAccepted }: { onScreeningAccepted?
     setError(null);
     setResult(null);
     setShareConsent(false);
+    onConsentChange?.(false);
+    onScreeningDraftChange?.(undefined);
     setStage("idle");
     setProgress(0);
     if (!selected) return;
@@ -123,6 +133,8 @@ export function SolarBillOcrDemo({ onScreeningAccepted }: { onScreeningAccepted?
     setError(null);
     setResult(null);
     setShareConsent(false);
+    onConsentChange?.(false);
+    onScreeningDraftChange?.(undefined);
 
     let worker: Awaited<ReturnType<(typeof import("tesseract.js"))["createWorker"]>> | null = null;
     try {
@@ -209,9 +221,10 @@ export function SolarBillOcrDemo({ onScreeningAccepted }: { onScreeningAccepted?
     }
   }
 
-  async function acceptForTestnetDemo() {
-    if (!file || !result || result.signals.length < 2 || !shareConsent || preparingCredential || !onScreeningAccepted) return;
+  async function prepareScreeningForTestnetDemo() {
+    if (!file || !result || !isDemoScreeningPass(screeningSignalFlags(result.signals)) || preparingCredential || !onScreeningDraftChange) return;
     setPreparingCredential(true);
+    onPreparationChange?.(true);
     setError(null);
     try {
       if (!globalThis.crypto?.subtle || !globalThis.crypto?.getRandomValues) {
@@ -224,13 +237,23 @@ export function SolarBillOcrDemo({ onScreeningAccepted }: { onScreeningAccepted?
       commitmentInput.set(fileDigest, salt.length);
       const commitment = new Uint8Array(await globalThis.crypto.subtle.digest("SHA-256", commitmentInput));
       const toHex = (bytes: Uint8Array) => `0x${Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("")}` as `0x${string}`;
-      const signalFlags = result.signals.reduce((flags, signal) => flags | (signal === "solar" ? 1 : signal === "export" ? 2 : signal === "net-units" ? 4 : 0), 0);
-      onScreeningAccepted({ documentCommitment: toHex(commitment), commitmentSalt: toHex(salt), signalFlags });
+      const signalFlags = screeningSignalFlags(result.signals);
+      if (!isDemoScreeningPass(signalFlags)) throw new Error("No supported bill clue was found.");
+      onScreeningDraftChange({ documentCommitment: toHex(commitment), commitmentSalt: toHex(salt), signalFlags });
     } catch {
       setError("Could not create a private, salted document fingerprint in this browser. Nothing was submitted; try again in a secure browser context.");
     } finally {
       setPreparingCredential(false);
+      onPreparationChange?.(false);
     }
+  }
+
+  function changeShareConsent(consented: boolean) {
+    setShareConsent(consented);
+    setError(null);
+    onConsentChange?.(consented);
+    if (consented) void prepareScreeningForTestnetDemo();
+    else onScreeningDraftChange?.(undefined);
   }
 
   function reset() {
@@ -240,6 +263,8 @@ export function SolarBillOcrDemo({ onScreeningAccepted }: { onScreeningAccepted?
     setError(null);
     setResult(null);
     setShareConsent(false);
+    onConsentChange?.(false);
+    onScreeningDraftChange?.(undefined);
     setStage("idle");
     setProgress(0);
   }
@@ -263,7 +288,7 @@ export function SolarBillOcrDemo({ onScreeningAccepted }: { onScreeningAccepted?
           id={inputId}
           type="file"
           accept="application/pdf,image/jpeg,image/png,image/webp,.pdf,.jpg,.jpeg,.png,.webp"
-          disabled={busy}
+          disabled={busy || preparingCredential}
           onChange={(event) => chooseFile(event.currentTarget.files?.[0] ?? null)}
           className="block w-full min-w-0 text-sm file:mr-3 file:rounded-md file:border file:border-input file:bg-background file:px-3 file:py-2 file:text-foreground"
         />
@@ -288,7 +313,7 @@ export function SolarBillOcrDemo({ onScreeningAccepted }: { onScreeningAccepted?
       {result && (
         <div className="space-y-2 rounded-md border border-border p-3" role="status" aria-live="polite">
           <p className="font-medium">
-            {result.signals.length >= 2 ? "Testnet demo screening rule matched" : result.signals.length === 1 ? "One possible bill clue found" : "No matching bill phrases detected"}
+            {isDemoScreeningPass(screeningSignalFlags(result.signals)) ? "Testnet demo screening pass available" : "No matching bill phrases detected"}
           </p>
           {matchedLabels.length > 0 ? (
             <ul className="list-disc space-y-1 pl-5 text-sm">{matchedLabels.map((label) => <li key={label}>{label}</li>)}</ul>
@@ -299,19 +324,19 @@ export function SolarBillOcrDemo({ onScreeningAccepted }: { onScreeningAccepted?
             {result.pagesScanned} {result.pagesScanned === 1 ? "page" : "pages"} scanned{result.totalPages && result.totalPages > result.pagesScanned ? ` (first ${result.pagesScanned} of ${result.totalPages})` : ""}
             {result.confidence !== null ? ` · OCR text confidence ${result.confidence}%` : ""}. OCR confidence is not document authenticity.
           </p>
-          <p className="text-sm font-semibold">Bill screening only — the house remains <strong>not verified in VoltGrid</strong>.</p>
+          <p className="text-sm font-semibold">{isDemoScreeningPass(screeningSignalFlags(result.signals)) ? "Demo screen passed — this is not official house verification." : "Bill screening only — the house remains not verified in VoltGrid."}</p>
           <p className="text-xs text-muted-foreground">For a real verification decision, review the official DISCOM/SNA commissioning certificate and owner-accessible DISCOM account. A bill phrase cannot prove identity, ownership, installation, or issuer authenticity.</p>
-          {result.signals.length >= 2 && onScreeningAccepted && (
+          {isDemoScreeningPass(screeningSignalFlags(result.signals)) && onScreeningDraftChange && (
             <div className="space-y-3 border-t border-border pt-3">
               <p className="text-sm font-semibold">Optional testnet certificate</p>
-              <p className="text-xs text-muted-foreground">This creates a non-transferable demo token only after you separately register and sign with this wallet. Its on-chain metadata states that screening was client-side and not official verification.</p>
+              <p className="text-xs text-muted-foreground">For this hackathon demo, one or more matched phrases count as a screening pass. That rule is not document-authenticity, utility-account, ownership, or installation verification. The non-transferable token is minted only after you separately register a solar declaration and sign with this wallet.</p>
               <label className="flex items-start gap-2 text-xs leading-5">
-                <input type="checkbox" checked={shareConsent} onChange={(event) => setShareConsent(event.currentTarget.checked)} className="mt-1" />
+                <input type="checkbox" checked={shareConsent} disabled={preparingCredential} onChange={(event) => changeShareConsent(event.currentTarget.checked)} className="mt-1" />
                 <span>I consent to publishing my wallet, a salted bill-file fingerprint, and these OCR clue categories on the public MST testnet. The bill and raw OCR text are not published. I understand the token is a non-official hackathon demo and the fingerprint is permanent on this network.</span>
               </label>
-              <Button type="button" variant="outline" onClick={() => void acceptForTestnetDemo()} disabled={!shareConsent || preparingCredential}>
-                {preparingCredential ? "Preparing private fingerprint…" : "Use screening for testnet registration"}
-              </Button>
+              {preparingCredential && <p className="text-xs text-muted-foreground" role="status" aria-live="polite">Preparing a private fingerprint locally…</p>}
+              {shareConsent && !preparingCredential && !error && <p className="text-xs text-muted-foreground" role="status">Fingerprint prepared locally. Choose “Continue to registration” below to carry this demo pass into the solar declaration.</p>}
+              {error && shareConsent && !preparingCredential && <Button type="button" variant="outline" onClick={() => void prepareScreeningForTestnetDemo()}>Retry fingerprint preparation</Button>}
             </div>
           )}
         </div>

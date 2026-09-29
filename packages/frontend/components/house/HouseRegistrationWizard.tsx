@@ -81,6 +81,8 @@ export function HouseRegistrationWizard() {
   const [reviewedDeclaration, setReviewedDeclaration] = useState<HouseDeclaration>();
   const [tx, setTx] = useState<RegistrationTx>();
   const [screeningDraft, setScreeningDraft] = useState<HouseScreeningDraft>();
+  const [screeningConsent, setScreeningConsent] = useState(false);
+  const [screeningPreparing, setScreeningPreparing] = useState(false);
   const [billVerificationOpen, setBillVerificationOpen] = useState(true);
   const billVerificationDialogRef = useRef<HTMLDialogElement>(null);
   const verificationRef = useRef<((receipt: ReceiptLike) => Promise<void>) | null>(null);
@@ -213,15 +215,22 @@ export function HouseRegistrationWizard() {
               This demo looks for solar and net-metering clues before you continue. The official DISCOM/SNA rooftop commissioning certificate is still the primary verification evidence; bill OCR cannot verify a house or its owner.
             </p>
           </header>
-          <SolarBillOcrDemo onScreeningAccepted={(draft) => {
-            setScreeningDraft(draft);
-            setHasSolar(true);
-            setStep("declaration");
-            setBillVerificationOpen(false);
-          }} />
+          <SolarBillOcrDemo
+            onScreeningDraftChange={setScreeningDraft}
+            onConsentChange={setScreeningConsent}
+            onPreparationChange={setScreeningPreparing}
+          />
           <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
-            <p className="max-w-xl text-xs text-muted-foreground">You can continue without a bill. House registration remains a model declaration and will not mark the property verified.</p>
-            <Button type="button" onClick={() => setBillVerificationOpen(false)}>Continue to registration</Button>
+            <p className="max-w-xl text-xs text-muted-foreground">You can continue without evidence. If a clue matched and you consented, the screening pass follows the solar declaration; the demo credential remains non-official and requires a separate confirmed registration and wallet signature.</p>
+            <Button
+              type="button"
+              disabled={screeningConsent && (screeningPreparing || !screeningDraft)}
+              onClick={() => {
+                if (screeningConsent && screeningDraft) setHasSolar(true);
+                setStep("declaration");
+                setBillVerificationOpen(false);
+              }}
+            >Continue to registration</Button>
           </div>
         </div>
       </dialog>

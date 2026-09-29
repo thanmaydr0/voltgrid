@@ -16,9 +16,21 @@ async function main() {
   const deployerAddress = getAddress(await deployer.getAddress());
   if (deployerAddress.toLowerCase() !== deployment.deployerAddress.toLowerCase()) throw new Error("Configured signer differs from deployment artifact admin");
 
-  for (const name of ["VoltToken", "VoltGridMarket", "CarbonCertificate", "HouseScreeningDemoCertificate"] as const) {
+  const requiredNames = ["VoltToken", "VoltGridMarket", "CarbonCertificate"] as const;
+  for (const name of requiredNames) {
     const record = deployment.contracts[name];
     if (!record) throw new Error(`Deployment artifact is missing ${name}`);
+    const receipt = await hre.ethers.provider.getTransactionReceipt(record.deployTxHash);
+    if (!receipt || receipt.status !== 1 || getAddress(receipt.contractAddress || "0x0000000000000000000000000000000000000000") !== getAddress(record.address) || receipt.blockNumber.toString() !== record.blockNumber) {
+      throw new Error(`${name} deployment receipt does not match the artifact`);
+    }
+    const codeHash = await assertRuntimeCode(hre.ethers.provider, record, name);
+    process.stdout.write(`${name}: receipt=success block=${record.blockNumber} address=${record.address} runtimeCodeHash=${codeHash} explorer=${MST_TESTNET_EXPLORER}/address/${record.address}\n`);
+  }
+  const demoNames = ["HouseScreeningDemoCertificate", "HouseScreeningDemoCertificateV2"] as const;
+  const demoRecords = demoNames.flatMap((name) => deployment.contracts[name] ? [{ name, record: deployment.contracts[name]! }] : []);
+  if (demoRecords.length === 0) throw new Error("Deployment artifact is missing a house screening demo credential");
+  for (const { name, record } of demoRecords) {
     const receipt = await hre.ethers.provider.getTransactionReceipt(record.deployTxHash);
     if (!receipt || receipt.status !== 1 || getAddress(receipt.contractAddress || "0x0000000000000000000000000000000000000000") !== getAddress(record.address) || receipt.blockNumber.toString() !== record.blockNumber) {
       throw new Error(`${name} deployment receipt does not match the artifact`);
@@ -30,7 +42,7 @@ async function main() {
   const tokenRecord = deployment.contracts.VoltToken!;
   const marketRecord = deployment.contracts.VoltGridMarket!;
   const certificateRecord = deployment.contracts.CarbonCertificate!;
-  const demoCredentialRecord = deployment.contracts.HouseScreeningDemoCertificate;
+  const demoCredentialRecord = deployment.contracts.HouseScreeningDemoCertificateV2 ?? deployment.contracts.HouseScreeningDemoCertificate;
   const token = await hre.ethers.getContractAt("VoltToken", tokenRecord.address);
   const market = await hre.ethers.getContractAt("VoltGridMarket", marketRecord.address);
   const certificate = await hre.ethers.getContractAt("CarbonCertificate", certificateRecord.address);

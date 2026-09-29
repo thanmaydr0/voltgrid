@@ -49,11 +49,11 @@ async function main() {
     },
   ];
   const unestimatedContracts: string[] = [];
-  if (existingDeployment?.contracts.HouseScreeningDemoCertificate) {
-    // The current artifact is already complete, so no deployment transaction is planned.
+  if (existingDeployment?.contracts.HouseScreeningDemoCertificateV2 || existingDeployment?.houseScreeningRuleVersion === 2) {
+    // The current demo contract version is already present; preflight remains read-only.
   } else if (existingDeployment?.contracts.VoltGridMarket) {
     jobs.push({
-      name: "HouseScreeningDemoCertificate",
+      name: existingDeployment.contracts.HouseScreeningDemoCertificate ? "HouseScreeningDemoCertificateV2" : "HouseScreeningDemoCertificate",
       file: "artifacts/contracts/HouseScreeningDemoCertificate.sol/HouseScreeningDemoCertificate.json",
       args: [existingDeployment.contracts.VoltGridMarket.address],
     });
@@ -91,7 +91,7 @@ async function main() {
   }
   const bufferedGas = totalGas * 150n / 100n;
   const report: Record<string, unknown> = {
-    mode: existingDeployment?.contracts.HouseScreeningDemoCertificate
+    mode: existingDeployment?.contracts.HouseScreeningDemoCertificateV2 || existingDeployment?.houseScreeningRuleVersion === 2
       ? "read-only preflight; complete testnet artifact found; no deployment transaction planned"
       : "read-only deployment preflight; no transaction broadcast",
     rpcHost: new URL(process.env.MST_RPC_URL || MST_TESTNET_RPC).host,

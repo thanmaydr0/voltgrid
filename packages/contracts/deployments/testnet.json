@@ -52,6 +52,16 @@
       "constructorArguments": [
         "0xe7f944785De4D7936ae21a1F5Af47BDC7B775Ae6"
       ]
+    },
+    "HouseScreeningDemoCertificateV2": {
+      "address": "0xC4b5f5b51BB763d7447FA7f883bbC777aacd3994",
+      "deployTxHash": "0xb6cbdf46bc55d7bbd1758921b9f6e131fbab7110fdcbaa0f20768ef4ad8acca1",
+      "blockNumber": "5800774",
+      "gasUsed": "1544245",
+      "runtimeCodeHash": "0x5c6a0fd474330752741f8153f7c9dcf9a6497bd11a969d49c1e5b0eab6168dce",
+      "constructorArguments": [
+        "0xe7f944785De4D7936ae21a1F5Af47BDC7B775Ae6"
+      ]
     }
   },
   "transactions": {
@@ -452,5 +462,6 @@
       ],
       "explorerUrl": "https://testnet.mstscan.com/tx/0xfd6119e6ff9bdb5299773e00c1e72e601e439b4df221d3f631886ccb8af190a4"
     }
-  }
+  },
+  "houseScreeningRuleVersion": 2
 }
