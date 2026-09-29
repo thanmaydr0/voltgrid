@@ -5,6 +5,7 @@ import {
   HOUSE_REGISTERED_EVENT_ABI,
   findHouseRegisteredEvent,
   getRegistrationReadiness,
+  shouldShowExistingSolarHouseDemoMint,
   normalizeBatteryCapacity,
   validateDeclaration,
   type HouseDeclaration,
@@ -59,6 +60,15 @@ test("known registration and active-day/full-registry states stay blocked", () =
   assert.match(getRegistrationReadiness({ ...baseReadiness, house: { ...baseReadiness.house, exists: true } }).reason, /already registered/i);
   assert.match(getRegistrationReadiness({ ...baseReadiness, dayActive: true }).reason, /active/i);
   assert.match(getRegistrationReadiness({ ...baseReadiness, houseCount: 16 }).reason, /full/i);
+});
+
+test("an existing registered solar wallet with a fresh OCR draft reaches demo mint without duplicate registration", () => {
+  const house = baseReadiness.house;
+  assert.equal(shouldShowExistingSolarHouseDemoMint({ address: baseReadiness.address, house: { ...house, exists: true, hasSolar: true }, hasScreeningDraft: true }), true);
+  assert.equal(shouldShowExistingSolarHouseDemoMint({ address: baseReadiness.address, house: { ...house, exists: false, hasSolar: true }, hasScreeningDraft: true }), false);
+  assert.equal(shouldShowExistingSolarHouseDemoMint({ address: baseReadiness.address, house: { ...house, exists: true, hasSolar: false }, hasScreeningDraft: true }), false);
+  assert.equal(shouldShowExistingSolarHouseDemoMint({ address: baseReadiness.address, house: { ...house, exists: true, hasSolar: true }, hasScreeningDraft: false }), false);
+  assert.equal(shouldShowExistingSolarHouseDemoMint({ house: { ...house, exists: true, hasSolar: true }, hasScreeningDraft: true }), false);
 });
 
 test("registration verification accepts only the expected market/account event", () => {

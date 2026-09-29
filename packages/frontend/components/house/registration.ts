@@ -38,6 +38,15 @@ export interface HouseSnapshot {
   readonly registrationIndex: number;
 }
 
+/** Existing solar houses can issue a screening demo credential without re-registering. */
+export function shouldShowExistingSolarHouseDemoMint(input: Readonly<{
+  address?: string;
+  house?: HouseSnapshot;
+  hasScreeningDraft: boolean;
+}>): boolean {
+  return Boolean(input.address && input.house?.exists && input.house.hasSolar && input.hasScreeningDraft);
+}
+
 export interface DaySnapshot {
   readonly active: boolean;
   readonly id: string;

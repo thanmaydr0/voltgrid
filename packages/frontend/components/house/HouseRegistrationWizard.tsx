@@ -27,6 +27,7 @@ import {
   normalizeBatteryCapacity,
   parseDaySnapshot,
   parseHouseSnapshot,
+  shouldShowExistingSolarHouseDemoMint,
   validateDeclaration,
   type HouseDeclaration,
 } from "./registration";
@@ -196,6 +197,11 @@ export function HouseRegistrationWizard() {
 
   const stepIndex = steps.findIndex((item) => item.key === step);
   const canContinue = readiness.canSign && !declarationError && !busy;
+  const showExistingSolarHouseMint = shouldShowExistingSolarHouseDemoMint({
+    address,
+    house: houseSnapshot,
+    hasScreeningDraft: Boolean(screeningDraft),
+  });
 
   return (
     <main id="main-content" className="mx-auto w-full max-w-5xl space-y-6 px-4 py-8 sm:px-6 lg:px-8">
@@ -221,7 +227,7 @@ export function HouseRegistrationWizard() {
             onPreparationChange={setScreeningPreparing}
           />
           <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
-            <p className="max-w-xl text-xs text-muted-foreground">You can continue without evidence. If a clue matched and you consented, the screening pass follows the solar declaration; the demo credential remains non-official and requires a separate confirmed registration and wallet signature.</p>
+            <p className="max-w-xl text-xs text-muted-foreground">You can continue without evidence. If this wallet already has a solar declaration, the next screen will offer the demo mint. Otherwise, complete and confirm registration first; the credential then needs its own wallet signature.</p>
             <Button
               type="button"
               disabled={screeningConsent && (screeningPreparing || !screeningDraft)}
@@ -258,7 +264,13 @@ export function HouseRegistrationWizard() {
 
       {step === "readiness" && <Card><CardHeader><CardTitle>Start when ready</CardTitle><CardDescription>Next you will choose solar and battery declarations explicitly.</CardDescription></CardHeader><CardContent><Button onClick={() => setStep("declaration")} disabled={!readiness.canSign}>Continue to declaration</Button></CardContent></Card>}
 
-      {step === "declaration" && <Card><CardHeader><CardTitle>Declaration</CardTitle><CardDescription>Select both capabilities. Nothing is assumed. If battery is off, the contract argument will be exactly zero.</CardDescription></CardHeader><CardContent className="space-y-6">
+      {step === "declaration" && houseSnapshot?.exists ? <Card><CardHeader><CardTitle>House already registered</CardTitle><CardDescription>This wallet already has an on-chain house declaration, so the append-only market will not accept a second registration.</CardDescription></CardHeader><CardContent className="space-y-4">
+        {houseSnapshot.hasSolar && <p className="rounded-md border border-border p-3 text-sm" role="status">The current MST Testnet registry says this wallet has solar declared. This is a model declaration, not official or physical verification.</p>}
+        {showExistingSolarHouseMint && address && <HouseScreeningDemoCredentialPanel houseAddress={address} draft={screeningDraft} />}
+        {houseSnapshot.hasSolar && !screeningDraft && <div className="space-y-3"><p className="rounded-md border border-border p-3 text-sm">No bill screening draft is available in this page session. Run the local OCR screening before minting; cached OCR results are not restored.</p><Button type="button" variant="outline" onClick={() => setBillVerificationOpen(true)}>Open bill screening</Button></div>}
+        {!houseSnapshot.hasSolar && <p className="rounded-md border border-border p-3 text-sm" role="status">This registered house has no solar declaration. The bill clue cannot change the immutable declaration, so no screening demo credential can be minted for this wallet.</p>}
+        <div className="flex flex-wrap gap-3"><Link href="/house"><Button variant="outline">View house status</Button></Link><Link href="/wallet"><Button variant="outline">Open wallet</Button></Link></div>
+      </CardContent></Card> : step === "declaration" && <Card><CardHeader><CardTitle>Declaration</CardTitle><CardDescription>Select both capabilities. Nothing is assumed. If battery is off, the contract argument will be exactly zero.</CardDescription></CardHeader><CardContent className="space-y-6">
         <fieldset className="space-y-3"><legend className="font-semibold">Solar declared?</legend><div className="flex flex-wrap gap-4"><label className="flex items-center gap-2"><input type="radio" name="has-solar" checked={hasSolar} onChange={() => setHasSolar(true)} /> Yes</label><label className="flex items-center gap-2"><input type="radio" name="has-solar" checked={!hasSolar} onChange={() => setHasSolar(false)} /> No</label></div></fieldset>
         {hasSolar && <SolarCertificateEvidenceNotice compact />}
         <fieldset className="space-y-3"><legend className="font-semibold">Battery declared?</legend><div className="flex flex-wrap gap-4"><label className="flex items-center gap-2"><input type="radio" name="has-battery" checked={hasBattery} onChange={() => setHasBattery(true)} /> Yes</label><label className="flex items-center gap-2"><input type="radio" name="has-battery" checked={!hasBattery} onChange={() => { setHasBattery(false); setCapacityInput(""); }} /> No</label></div></fieldset>
