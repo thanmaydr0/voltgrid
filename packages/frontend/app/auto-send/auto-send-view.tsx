@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { decodeEventLog, formatUnits, isAddress, parseUnits, type Address, type Hash, type Hex } from "viem";
-import { useAccount, useBlockNumber, usePublicClient, useReadContract, useWatchContractEvent, useWriteContract } from "wagmi";
+import { useAccount, useBlockNumber, usePublicClient, useReadContract, useReadContracts, useWatchContractEvent, useWriteContract } from "wagmi";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,14 +14,24 @@ import { NetworkWarning } from "@/components/NetworkWarning";
 import { mstTestnet } from "@/lib/chains";
 import { contractAddresses, hasContractAddresses } from "@/lib/addresses";
 import { makeSimulationSnapshot } from "@/lib/simulation";
-import { planAutoSend, type AutoSendPolicy, type AutoSendReading } from "@/lib/auto-send";
+import { planAutoSend, type AutoSendPlan, type AutoSendPolicy, type AutoSendReading } from "@/lib/auto-send";
 import { VOLT_GRID_MARKET_ABI, VOLT_TOKEN_ABI } from "voltgrid-shared";
 import { describeWalletError, errorText, explorerTransactionUrl, reconcileReceipt, transactionIsInFlight, type WalletTransactionState } from "@/components/wallet/transaction";
 
 type ReceiptLike = {
   readonly status?: string;
+  readonly blockNumber?: bigint;
   readonly logs: readonly { readonly address: string; readonly data: `0x${string}`; readonly topics: readonly `0x${string}`[] }[];
 };
+
+type LiveTransfer = Readonly<{
+  hash: Hash;
+  sender: Address;
+  receiver: Address;
+  amountWei: bigint;
+  status: "pending" | "confirmed" | "unknown" | "reverted";
+  blockNumber?: bigint;
+}>;
 
 const DEFAULT_POLICY: AutoSendPolicy = {
   minimumSupplierSurplusWh: 500,
@@ -55,6 +65,24 @@ function numberValue(value: string, fallback: number) {
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
 }
 
+function planForSnapshot(
+  snapshot: ReturnType<typeof makeSimulationSnapshot>,
+  address: Address,
+  registeredAddresses: readonly Address[],
+  policy: AutoSendPolicy,
+): AutoSendPlan | null {
+  const supplierOutput = snapshot.output.readings.find((reading) => reading.house.toLowerCase() === address.toLowerCase());
+  if (!supplierOutput) return null;
+  const supplierReading: AutoSendReading = { address, generationWh: supplierOutput.generationWh, consumptionWh: supplierOutput.consumptionWh };
+  const modelNeighbours = snapshot.output.readings.filter((reading) => reading.house.toLowerCase() !== address.toLowerCase());
+  const neighbours: AutoSendReading[] = registeredAddresses.map((gridAddress, index) => {
+    const model = modelNeighbours[index % Math.max(modelNeighbours.length, 1)];
+    return { address: gridAddress, generationWh: model?.generationWh ?? 0, consumptionWh: model?.consumptionWh ?? 0 };
+  });
+  const priceMicro = snapshot.output.previewPriceMicroVltPerKwh ?? policy.priceMicroVltPerKwh;
+  return planAutoSend(supplierReading, neighbours, { ...policy, priceMicroVltPerKwh: priceMicro });
+}
+
 export function AutoSendView() {
   const { address, chainId, isConnected } = useAccount();
   const { writeContractAsync } = useWriteContract();
@@ -63,7 +91,9 @@ export function AutoSendView() {
   const [hour, setHour] = useState(12);
   const [policy, setPolicy] = useState(DEFAULT_POLICY);
   const [monitoring, setMonitoring] = useState(false);
+  const [demoPrepared, setDemoPrepared] = useState(false);
   const [tx, setTx] = useState<WalletTransactionState>();
+  const [liveTransfers, setLiveTransfers] = useState<readonly LiveTransfer[]>([]);
   const verificationRef = useRef<((receipt: ReceiptLike) => Promise<void>) | null>(null);
 
   const tokenAddress = contractAddresses.token;
@@ -92,30 +122,53 @@ export function AutoSendView() {
   const registeredAddresses = useMemo(() => Array.isArray(gridHouses.data)
     ? gridHouses.data.filter((item): item is Address => typeof item === "string" && isAddress(item) && item.toLowerCase() !== address?.toLowerCase())
     : [], [address, gridHouses.data]);
+  const neighbourBalanceContracts = useMemo(() => registeredAddresses.map((neighbour) => ({ address: tokenAddress, abi: VOLT_TOKEN_ABI, functionName: "balanceOf" as const, args: [neighbour] as const })), [registeredAddresses, tokenAddress]);
+  const neighbourBalances = useReadContracts({ contracts: neighbourBalanceContracts, chainId: mstTestnet.id, query: { enabled: Boolean(readsEnabled && tokenAddress && neighbourBalanceContracts.length > 0) } });
   const snapshot = useMemo(() => address && readsEnabled ? makeSimulationSnapshot(scenario, "auto-send-preview", hour, false, address, undefined, { hasSolar: viewerHasSolar, hasBattery: viewerHasBattery, batteryCapacityWh: viewerBatteryCapacityWh }) : null, [address, hour, readsEnabled, scenario, viewerBatteryCapacityWh, viewerHasBattery, viewerHasSolar]);
   const policyKey = `${policy.minimumSupplierSurplusWh}:${policy.minimumNeighbourNeedWh}:${policy.reserveWh}:${policy.maximumTransferWh}:${policy.priceMicroVltPerKwh}`;
   const plan = useMemo(() => {
     if (!snapshot || !address) return null;
-    const supplierOutput = snapshot.output.readings.find((reading) => reading.house.toLowerCase() === address.toLowerCase());
-    if (!supplierOutput) return null;
-    const supplierReading: AutoSendReading = { address, generationWh: supplierOutput.generationWh, consumptionWh: supplierOutput.consumptionWh };
-    const modelNeighbours = snapshot.output.readings.filter((reading) => reading.house.toLowerCase() !== address.toLowerCase());
-    const neighbours: AutoSendReading[] = registeredAddresses.map((gridAddress, index) => {
-      const model = modelNeighbours[index % Math.max(modelNeighbours.length, 1)];
-      return { address: gridAddress, generationWh: model?.generationWh ?? 0, consumptionWh: model?.consumptionWh ?? 0 };
-    });
-    const priceMicro = snapshot.output.previewPriceMicroVltPerKwh ?? policy.priceMicroVltPerKwh;
-    return planAutoSend(supplierReading, neighbours, { ...policy, priceMicroVltPerKwh: priceMicro });
+    return planForSnapshot(snapshot, address, registeredAddresses, policy);
   }, [address, policy, registeredAddresses, snapshot]);
+  const demoOpportunity = useMemo(() => {
+    if (!address || !readsEnabled || registeredAddresses.length === 0) return null;
+    const scenarios = ["sunny", "rainy", "heatwave"] as const;
+    for (const demoScenario of scenarios) {
+      for (let demoHour = 0; demoHour < 24; demoHour += 1) {
+        const demoSnapshot = makeSimulationSnapshot(demoScenario, "hackathon-fast-demo", demoHour, false, address, undefined, { hasSolar: viewerHasSolar, hasBattery: viewerHasBattery, batteryCapacityWh: viewerBatteryCapacityWh });
+        const demoPlan = planForSnapshot(demoSnapshot, address, registeredAddresses, policy);
+        if (demoPlan?.selected) return { scenario: demoScenario, hour: demoHour, plan: demoPlan };
+      }
+    }
+    return null;
+  }, [address, policy, readsEnabled, registeredAddresses, viewerBatteryCapacityWh, viewerHasBattery, viewerHasSolar]);
   const selected = plan?.selected ?? null;
   const selectedAmountWei = selected && decimalsValue !== undefined ? parseUnits((selected.amountMicroVlt / 1_000_000).toFixed(6), decimalsValue) : undefined;
   const hasEnoughBalance = Boolean(selectedAmountWei && balanceValue !== undefined && balanceValue >= selectedAmountWei);
   const canSend = Boolean(readsEnabled && publicClient && tokenAddress && address && selected && selectedAmountWei && hasEnoughBalance && !busy);
 
+  function neighbourBalanceAt(index: number) {
+    const result = neighbourBalances.data?.[index];
+    if (!result || typeof result !== "object" || !("result" in result) || typeof result.result !== "bigint") return undefined;
+    return result.result;
+  }
+
   async function refreshReads() {
-    const results = await Promise.all([balance.refetch(), house.refetch(), gridHouses.refetch()]);
+    const results = await Promise.all([balance.refetch(), house.refetch(), gridHouses.refetch(), neighbourBalances.refetch()]);
     if (results.some((result) => result.isError)) throw new Error("Grid state refresh unavailable; keep the transaction hash and reconcile it.");
   }
+
+  function recordLiveTransfer(transfer: LiveTransfer) {
+    setLiveTransfers((current) => [transfer, ...current.filter((item) => item.hash !== transfer.hash)].slice(0, 12));
+  }
+
+  function updateLiveTransfer(hash: Hash, update: Pick<LiveTransfer, "status" | "blockNumber">) {
+    setLiveTransfers((current) => current.map((item) => item.hash === hash ? { ...item, ...update } : item));
+  }
+
+  useEffect(() => {
+    setLiveTransfers([]);
+  }, [address]);
 
   useEffect(() => {
     if (blockNumber === undefined || !readsEnabled) return;
@@ -129,27 +182,42 @@ export function AutoSendView() {
     eventName: "Transfer",
     chainId: mstTestnet.id,
     enabled: Boolean(readsEnabled && tokenAddress),
-    onLogs: () => { void refreshReads(); },
+    onLogs: (logs) => {
+      for (const log of logs) {
+        const transferLog = log as unknown as { args?: { from?: string; to?: string; value?: bigint }; transactionHash?: Hash; blockNumber?: bigint };
+        const sender = transferLog.args?.from;
+        const receiver = transferLog.args?.to;
+        if (!address || !sender || !receiver || !transferLog.args?.value || !transferLog.transactionHash) continue;
+        if (sender.toLowerCase() !== address.toLowerCase() && receiver.toLowerCase() !== address.toLowerCase()) continue;
+        if (!isAddress(sender) || !isAddress(receiver)) continue;
+        recordLiveTransfer({ hash: transferLog.transactionHash, sender, receiver, amountWei: transferLog.args.value, status: "confirmed", blockNumber: transferLog.blockNumber });
+      }
+      void refreshReads();
+    },
   });
 
   async function confirmHash(hash: Hash, label: string, verify: (receipt: ReceiptLike) => Promise<void>) {
     if (!publicClient) {
+      updateLiveTransfer(hash, { status: "unknown" });
       setTx({ kind: "transfer", label, stage: "unknown", hash, message: "The receipt client is unavailable. Keep this hash and reconcile it when RPC is available.", technical: "No configured MST Testnet public client" });
       return;
     }
     setTx({ kind: "transfer", label, stage: "receipt", hash });
     const result = await reconcileReceipt(hash, () => publicClient.waitForTransactionReceipt({ hash }) as unknown as Promise<ReceiptLike>, verify);
     if (result.stage === "reverted") {
+      updateLiveTransfer(hash, { status: "reverted", blockNumber: result.receipt?.blockNumber });
       const friendly = describeWalletError(new Error("Transaction receipt status was reverted"));
       setTx({ kind: "transfer", label, stage: "reverted", hash, message: friendly.message, technical: friendly.technical });
       return;
     }
     if (result.stage === "unknown") {
+      updateLiveTransfer(hash, { status: "unknown", blockNumber: result.receipt?.blockNumber });
       const friendly = describeWalletError(result.error);
       setTx({ kind: "transfer", label, stage: "unknown", hash, message: friendly.message, technical: friendly.technical ?? errorText(result.error) });
       return;
     }
     try {
+      updateLiveTransfer(hash, { status: "confirmed", blockNumber: result.receipt?.blockNumber });
       await refreshReads();
       setTx({ kind: "transfer", label, stage: "confirmed", hash, message: `${label}: confirmed and the supplier balance was refreshed.` });
     } catch (error) {
@@ -170,6 +238,7 @@ export function AutoSendView() {
     setTx({ kind: "transfer", label, stage: "wallet" });
     try {
       const hash = await writeContractAsync({ address: tokenAddress, abi: VOLT_TOKEN_ABI, functionName: "transfer", args: [recipient, selectedAmountWei], chainId: mstTestnet.id });
+      recordLiveTransfer({ hash, sender, receiver: recipient, amountWei: selectedAmountWei, status: "pending" });
       await confirmHash(hash, label, verify);
     } catch (error) {
       const friendly = describeWalletError(error);
@@ -182,9 +251,18 @@ export function AutoSendView() {
     await confirmHash(tx.hash, tx.label, verificationRef.current);
   }
 
+  function prepareHackathonDemo() {
+    if (!demoOpportunity) return;
+    setScenario(demoOpportunity.scenario);
+    setHour(demoOpportunity.hour);
+    setMonitoring(true);
+    setDemoPrepared(true);
+  }
+
   const supplier = snapshot && address ? snapshot.output.readings.find((reading) => reading.house.toLowerCase() === address.toLowerCase()) : undefined;
   const supplierSurplus = supplier ? Math.max(supplier.generationWh - supplier.consumptionWh, 0) : 0;
   const supplierDeficit = supplier ? Math.max(supplier.consumptionWh - supplier.generationWh, 0) : 0;
+  const demoIsReady = Boolean(demoPrepared && demoOpportunity && demoOpportunity.scenario === scenario && demoOpportunity.hour === hour);
 
   return (
     <main id="main-content" className="mx-auto w-full max-w-6xl space-y-6 px-4 py-8 sm:px-6 lg:px-8">
@@ -214,12 +292,37 @@ export function AutoSendView() {
         </CardContent>
       </Card>
 
+      <Card>
+        <CardHeader><CardTitle>Hackathon fast demo</CardTitle><CardDescription>Finds an eligible simulated surplus/need moment immediately, then sends a real VLT transfer from the connected main wallet to the algorithm-selected neighbour.</CardDescription></CardHeader>
+        <CardContent className="space-y-4">
+          {demoOpportunity ? <p className="text-sm leading-6 text-muted-foreground">Fastest eligible run found at <strong className="text-foreground">{demoOpportunity.scenario}, hour {String(demoOpportunity.hour).padStart(2, "0")}</strong>. Recipient: <code className="break-all">{demoOpportunity.plan.selected?.recipient}</code>. Amount: {(demoOpportunity.plan.selected!.amountMicroVlt / 1_000_000).toFixed(6)} {displayedSymbol}.</p> : <p className="text-sm leading-6 text-muted-foreground">No demo opportunity is available yet. Connect a registered solar supplier wallet and make sure at least one other grid house is registered.</p>}
+          <div className="flex flex-wrap gap-3"><Button variant="outline" onClick={prepareHackathonDemo} disabled={!demoOpportunity || busy}>{demoIsReady ? "Demo prepared" : "Prepare fastest demo"}</Button><Button onClick={() => void sendSelected()} disabled={!demoIsReady || !canSend}>{hasEnoughBalance ? "Run real VLT demo transfer" : "Insufficient VLT balance"}</Button></div>
+          <p className="text-xs text-muted-foreground">The simulation does not wait for a 24-hour clock. The second button uses the real token contract; the wallet signature and one MST Testnet receipt are still required.</p>
+        </CardContent>
+      </Card>
+
       <section className="grid gap-6 lg:grid-cols-[1.1fr_.9fr]" aria-label="Automatic dispatch decision">
         <Card><CardHeader><CardTitle>Algorithm decision</CardTitle><CardDescription>Current modelled supplier reading at hour {String(hour).padStart(2, "0")}.</CardDescription></CardHeader><CardContent className="space-y-4"><div className="grid gap-3 sm:grid-cols-3"><div className="rounded-md border border-border p-4"><span className="text-xs text-muted-foreground">Generation</span><p className="mt-1 font-semibold">{supplier?.generationWh.toLocaleString("en-IN") ?? "Unavailable"} Wh</p></div><div className="rounded-md border border-border p-4"><span className="text-xs text-muted-foreground">Consumption</span><p className="mt-1 font-semibold">{supplier?.consumptionWh.toLocaleString("en-IN") ?? "Unavailable"} Wh</p></div><div className="rounded-md border border-border p-4"><span className="text-xs text-muted-foreground">Surplus / need</span><p className="mt-1 font-semibold">{supplier ? supplierSurplus > 0 ? `+${supplierSurplus.toLocaleString("en-IN")} Wh` : `-${supplierDeficit.toLocaleString("en-IN")} Wh` : "Unavailable"}</p></div></div>{!supplier && <p className="text-sm text-muted-foreground">Connect a registered supplier wallet to run the decision.</p>}{supplier && !plan?.selected && <p className="text-sm text-muted-foreground">No eligible neighbour right now. The supplier must clear the surplus threshold and at least one neighbour must clear the need threshold.</p>}{selected && <div className="rounded-md border border-primary/40 bg-primary/10 p-4"><p className="font-semibold">Selected neighbour: <code className="break-all">{selected.recipient}</code></p><p className="mt-2 text-sm text-muted-foreground">Send {selected.transferableWh.toLocaleString("en-IN")} Wh of modelled support, valued at {(selected.amountMicroVlt / 1_000_000).toFixed(6)} {displayedSymbol}.</p><Button className="mt-4" onClick={() => void sendSelected()} disabled={!canSend}>{hasEnoughBalance ? "Approve selected auto-send" : "Insufficient VLT balance"}</Button></div>}</CardContent></Card>
         <Card><CardHeader><CardTitle>Supplier funding</CardTitle><CardDescription>Direct VLT transfers use the wallet balance. They do not use the separate market balance.</CardDescription></CardHeader><CardContent><p className="text-2xl font-semibold">{balanceValue === undefined ? "Unavailable" : `${formatUnits(balanceValue, decimalsValue ?? 18)} ${displayedSymbol}`}</p><p className="mt-2 text-sm text-muted-foreground">If the balance is unavailable, connect on MST Testnet. You may claim demo VLT on the <Link className="underline" href="/wallet">Wallet</Link> page.</p></CardContent></Card>
       </section>
 
       <Card><CardHeader><CardTitle>Neighbour need queue</CardTitle><CardDescription>Registered houses are scored by modelled deficit. The highest eligible need is selected first.</CardDescription></CardHeader><CardContent>{plan?.candidates.length ? <div className="overflow-x-auto"><table className="w-full min-w-[42rem] border-collapse text-left text-xs"><thead><tr className="text-muted-foreground"><th className="border-b border-border p-2">Neighbour</th><th className="border-b border-border p-2">Need</th><th className="border-b border-border p-2">Eligible send</th><th className="border-b border-border p-2">Priority</th></tr></thead><tbody>{plan.candidates.map((candidate, index) => <tr key={candidate.recipient}><td className="break-all border-b border-border p-2">{candidate.recipient}</td><td className="border-b border-border p-2">{candidate.neighbourNeedWh.toLocaleString("en-IN")} Wh</td><td className="border-b border-border p-2">{candidate.transferableWh.toLocaleString("en-IN")} Wh</td><td className="border-b border-border p-2">{index === 0 ? "selected" : "next"}</td></tr>)}</tbody></table></div> : <p className="text-sm text-muted-foreground">No neighbour currently meets the need threshold.</p>}<p className="mt-4 text-xs text-muted-foreground">Model source: sim-core deterministic preview. These readings do not measure physical meters or dispatch real electricity.</p></CardContent></Card>
+
+      <Card>
+        <CardHeader><CardTitle>Live neighbour VLT balances</CardTitle><CardDescription>Every registered grid neighbour’s wallet balance is read directly from the VLT token contract.</CardDescription></CardHeader>
+        <CardContent>
+          {registeredAddresses.length === 0 ? <p className="text-sm text-muted-foreground">No other registered grid houses are available.</p> : <div className="overflow-x-auto"><table className="w-full min-w-[40rem] border-collapse text-left text-xs"><thead><tr className="text-muted-foreground"><th className="border-b border-border p-2">Neighbour wallet</th><th className="border-b border-border p-2">Live wallet VLT</th><th className="border-b border-border p-2">Read status</th></tr></thead><tbody>{registeredAddresses.map((neighbour, index) => { const value = neighbourBalanceAt(index); return <tr key={neighbour}><td className="break-all border-b border-border p-2">{neighbour}</td><td className="border-b border-border p-2 font-semibold">{value === undefined ? "Unavailable" : `${formatUnits(value, decimalsValue ?? 18)} ${displayedSymbol}`}</td><td className="border-b border-border p-2">{value === undefined ? "waiting / unavailable" : "live"}</td></tr>; })}</tbody></table></div>}
+          <p className="mt-4 text-xs text-muted-foreground">Balances refresh on new MST Testnet blocks and immediately after observed VLT Transfer events, including auto-send transfers.</p>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader><CardTitle>Live transfer tracker</CardTitle><CardDescription>Transfers involving the connected supplier are captured from the VLT Transfer event as soon as the chain reports them.</CardDescription></CardHeader>
+        <CardContent>
+          {liveTransfers.length === 0 ? <p className="text-sm text-muted-foreground">No transfer hash observed yet. Start monitoring and approve an eligible auto-send to see the sender, receiver, status, and hash here.</p> : <div className="overflow-x-auto"><table className="w-full min-w-[58rem] border-collapse text-left text-xs"><thead><tr className="text-muted-foreground"><th className="border-b border-border p-2">Status</th><th className="border-b border-border p-2">Sender</th><th className="border-b border-border p-2">Receiver</th><th className="border-b border-border p-2">Amount</th><th className="border-b border-border p-2">Block</th><th className="border-b border-border p-2">Transaction hash</th></tr></thead><tbody>{liveTransfers.map((transfer) => <tr key={transfer.hash}><td className="border-b border-border p-2">{transfer.status}</td><td className="break-all border-b border-border p-2">{transfer.sender}</td><td className="break-all border-b border-border p-2">{transfer.receiver}</td><td className="border-b border-border p-2">{formatUnits(transfer.amountWei, decimalsValue ?? 18)} {displayedSymbol}</td><td className="border-b border-border p-2">{transfer.blockNumber?.toString() ?? "pending"}</td><td className="break-all border-b border-border p-2"><a className="underline" href={explorerTransactionUrl(transfer.hash, mstTestnet.blockExplorers.default.url)} target="_blank" rel="noreferrer">{transfer.hash}</a></td></tr>)}</tbody></table></div>}
+          <p className="mt-4 text-xs text-muted-foreground">Live source: confirmed VLT Transfer events plus new-block balance refreshes. The list keeps the latest 12 relevant transfers for this connected wallet.</p>
+        </CardContent>
+      </Card>
 
       <Card><CardHeader><CardTitle>Wallet boundary</CardTitle><CardDescription>Automatic selection cannot silently spend tokens from a browser wallet.</CardDescription></CardHeader><CardContent><p className="text-sm leading-6 text-muted-foreground">This route removes manual neighbour selection and calculates the recipient and amount automatically. The selected VLT transfer still opens the connected wallet for an explicit signature. Fully unattended on-chain sending would require a separately authorized relayer or automation contract.</p></CardContent></Card>
 
