@@ -12,6 +12,33 @@ import {
   validateSavedDay,
 } from "../lib/supabase/validation";
 import { toSupabaseFailure } from "../lib/supabase/errors";
+import { getSupabasePublicEnv } from "../lib/supabase/env";
+
+test("production has VoltGrid's public Supabase settings when host build vars are omitted", () => {
+  const previous = {
+    url: process.env.NEXT_PUBLIC_SUPABASE_URL,
+    key: process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
+    disabled: process.env.NEXT_PUBLIC_SUPABASE_DISABLED,
+  };
+  try {
+    delete process.env.NEXT_PUBLIC_SUPABASE_URL;
+    delete process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+    delete process.env.NEXT_PUBLIC_SUPABASE_DISABLED;
+    assert.deepEqual(getSupabasePublicEnv(true), {
+      url: "https://gdlszyatixsnqenakuhg.supabase.co",
+      publishableKey: "sb_publishable_UQ55CFzmLsl2BZS39wVSPg_nGfput5J",
+    });
+    process.env.NEXT_PUBLIC_SUPABASE_DISABLED = "true";
+    assert.equal(getSupabasePublicEnv(true), null);
+  } finally {
+    if (previous.url === undefined) delete process.env.NEXT_PUBLIC_SUPABASE_URL;
+    else process.env.NEXT_PUBLIC_SUPABASE_URL = previous.url;
+    if (previous.key === undefined) delete process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+    else process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY = previous.key;
+    if (previous.disabled === undefined) delete process.env.NEXT_PUBLIC_SUPABASE_DISABLED;
+    else process.env.NEXT_PUBLIC_SUPABASE_DISABLED = previous.disabled;
+  }
+});
 
 test("auth callback paths stay same-origin and reject open redirects", () => {
   assert.equal(getSafeReturnPath("/settings?tab=account"), "/settings?tab=account");
