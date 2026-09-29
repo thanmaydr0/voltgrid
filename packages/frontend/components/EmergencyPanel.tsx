@@ -99,7 +99,7 @@ export function EmergencyPanel({
         </li>)}</ul> : <small>No simulated battery capacity is present in this preview.</small>}
       </div>
       <p className="assumption">Opt in using the connected house’s wallet signature before starting a day. The demo snapshots opt-in at day start; no real utility dispatch is claimed.</p>
-      <a className="wallet-tx" href="#wallet-title">Manage battery opt-in in Wallet &amp; network</a>
+      <a className="wallet-tx" href="/wallet">Manage battery opt-in in Wallet</a>
     </section>
   );
 }

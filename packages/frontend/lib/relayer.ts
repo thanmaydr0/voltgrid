@@ -100,30 +100,36 @@ export class RelayerRequestError extends Error {
   }
 }
 
-const SESSION_KEY = "voltgrid:relayer-session";
 const DEFAULT_BASE = "/api/relayer";
 
-export function readStoredRelayerSession(): StoredRelayerSession | null {
-  if (typeof window === "undefined") return null;
-  try {
-    const parsed = JSON.parse(window.sessionStorage.getItem(SESSION_KEY) ?? "null") as StoredRelayerSession | null;
-    if (!parsed?.accessToken || !/^0x[0-9a-fA-F]{40}$/.test(parsed.address) || !Number.isSafeInteger(parsed.expiresAt) || parsed.expiresAt <= Date.now()) {
-      window.sessionStorage.removeItem(SESSION_KEY);
-      return null;
-    }
-    return parsed;
-  } catch {
-    window.sessionStorage.removeItem(SESSION_KEY);
+// A relayer bearer is deliberately process-memory only. A full page refresh
+// clears this value and the wallet must sign a fresh challenge. Supabase
+// account cookies are separate and never authorize relayer requests.
+let inMemoryRelayerSession: StoredRelayerSession | null = null;
+
+function validSession(value: StoredRelayerSession | null): value is StoredRelayerSession {
+  return Boolean(
+    value?.accessToken
+      && /^0x[0-9a-fA-F]{40}$/.test(value.address)
+      && Number.isSafeInteger(value.expiresAt)
+      && value.expiresAt > Date.now(),
+  );
+}
+
+export function readRelayerSession(): StoredRelayerSession | null {
+  if (!validSession(inMemoryRelayerSession)) {
+    inMemoryRelayerSession = null;
     return null;
   }
+  return inMemoryRelayerSession;
 }
 
 export function storeRelayerSession(session: StoredRelayerSession): void {
-  if (typeof window !== "undefined") window.sessionStorage.setItem(SESSION_KEY, JSON.stringify(session));
+  inMemoryRelayerSession = session;
 }
 
 export function clearRelayerSession(): void {
-  if (typeof window !== "undefined") window.sessionStorage.removeItem(SESSION_KEY);
+  inMemoryRelayerSession = null;
 }
 
 function relayerBase(): string {

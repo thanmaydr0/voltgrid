@@ -16,7 +16,7 @@ export function EpochTimeline({ outcomes, nextEpoch, live }: { outcomes: readonl
         <div><p className="eyebrow">Day state machine</p><h2 id="timeline-title">24 hourly outcomes</h2></div>
         <span className={`status-badge ${live ? "status-submitted---pending" : "status-preview-simulation"}`}>{live ? "live day" : "preview"}</span>
       </div>
-      <p className="card-copy">Each cell advances only after the relayer confirms the expected receipt event. Refreshing this page resumes from the stored day and request IDs.</p>
+      <p className="card-copy">Each cell advances only after the relayer confirms the expected receipt event. Refreshing this page re-reads the day from the relayer and reuses deterministic request IDs.</p>
       <ol className="epoch-grid" aria-label="24 epoch settlement states">
         {Array.from({ length: 24 }, (_, epoch) => {
           const outcome = byEpoch.get(epoch);

@@ -1,3 +1,7 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
 :root {
   color-scheme: dark;
   --bg: #0b1115;
@@ -15,6 +19,25 @@
   --blue: #8ec9ff;
   --danger: #ff736c;
   --radius: 18px;
+  --background: 207 35% 6%;
+  --foreground: 145 20% 94%;
+  --card: 203 31% 11%;
+  --card-foreground: 145 20% 94%;
+  --popover: 204 29% 10%;
+  --popover-foreground: 145 20% 94%;
+  --primary: 166 57% 62%;
+  --primary-foreground: 203 38% 10%;
+  --secondary: 202 24% 17%;
+  --secondary-foreground: 145 20% 94%;
+  --muted: 203 18% 18%;
+  --muted-foreground: 200 13% 66%;
+  --accent: 40 71% 63%;
+  --accent-foreground: 207 35% 6%;
+  --destructive: 7 78% 66%;
+  --destructive-foreground: 207 35% 6%;
+  --border: 197 24% 26%;
+  --input: 197 24% 26%;
+  --ring: 166 57% 62%;
 }
 
 * { box-sizing: border-box; }
@@ -54,3 +77,29 @@ a { color: inherit; }
 @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; } }
 @media (max-width: 980px) { .top-grid, .primary-grid, .secondary-grid, .bottom-grid { grid-template-columns: 1fr; } .side-stack { grid-template-columns: repeat(2, 1fr); } }
 @media (max-width: 680px) { .header-inner, .dashboard-shell { padding-left: 1rem; padding-right: 1rem; } .header-inner { align-items: flex-start; }.header-meta { display: grid; justify-items: end; gap: .35rem; font-size: .6rem; }.header-model { display: none; }.dashboard-shell { padding-top: 2.2rem; }.hero { align-items: flex-start; }.hero-orb { flex-basis: 86px; width: 86px; height: 86px; }.hero-orb span { font-size: 1.8rem; }.hero-orb small { font-size: .48rem; text-align: center; }.hero-lede { font-size: .92rem; }.card { padding: 1rem; border-radius: 14px; }.side-stack { grid-template-columns: 1fr; }.scenario-buttons { grid-template-columns: 1fr; }.scenario-button { display: flex; align-items: center; justify-content: center; gap: .4rem; min-height: 2.7rem; }.scenario-button span { margin: 0; }.wallet-capabilities { grid-template-columns: 1fr; }.metric-strip { grid-template-columns: 1fr; }.site-footer { display: grid; }.neighborhood-svg { min-height: 230px; }.status-list > div { grid-template-columns: 1fr; gap: .35rem; } }
+
+.observation-input { display: grid; gap: .55rem; margin-top: 1rem; padding: .8rem; border: 1px solid var(--line); border-radius: 10px; background: rgba(10, 17, 21, .35); }
+.observation-heading { display: flex; align-items: center; justify-content: space-between; gap: .5rem; }
+.observation-heading h3 { margin: 0; color: var(--ink); font-size: .76rem; }
+.observation-heading > span { color: var(--gold); font-size: .56rem; font-weight: 800; letter-spacing: .06em; }
+.observation-mode { display: flex; flex-wrap: wrap; gap: .4rem; }
+.observation-mode button { padding: .42rem .55rem; border: 1px solid var(--line-bright); border-radius: 7px; background: transparent; color: var(--ink-soft); font-size: .65rem; }
+.observation-mode button[aria-pressed="true"] { border-color: var(--mint); color: var(--mint); }
+.observation-mode button:disabled { cursor: not-allowed; opacity: .55; }
+.observation-copy, .observation-boundary { margin: 0; color: var(--ink-faint); font-size: .64rem; line-height: 1.45; overflow-wrap: anywhere; }
+.observation-copy code { color: var(--mint); }
+.observation-result { display: grid; gap: .35rem; padding: .65rem; border-left: 2px solid var(--gold); background: rgba(229, 184, 92, .06); }
+.observation-result strong { color: var(--gold); font-size: .68rem; }
+.observation-result span { color: var(--ink-soft); font-size: .62rem; line-height: 1.4; overflow-wrap: anywhere; }
+.observation-result .button { justify-self: start; margin-top: .2rem; }
+.observation-boundary { padding-top: .45rem; border-top: 1px solid var(--line); }
+.observation-boundary strong { color: var(--mint); }
+
+@media (max-width: 680px) {
+  .hero { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1rem; }
+  .hero-copy { min-width: 0; }
+  .hero-orb { justify-self: end; flex-basis: 68px; width: 68px; height: 68px; }
+  .hero-orb span { font-size: 1.4rem; }
+  .epoch-grid { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+}
+

@@ -5,7 +5,7 @@ import { useAccount, useSignMessage } from "wagmi";
 import {
   clearRelayerSession,
   createChallenge,
-  readStoredRelayerSession,
+  readRelayerSession,
   RelayerRequestError,
   storeRelayerSession,
   verifyChallenge,
@@ -20,7 +20,7 @@ export function useRelayerSession() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const stored = readStoredRelayerSession();
+    const stored = readRelayerSession();
     if (address && stored?.address.toLowerCase() === address.toLowerCase()) {
       setSession(stored);
     } else {
@@ -37,7 +37,7 @@ export function useRelayerSession() {
       clearRelayerSession();
       setSession(null);
     }
-    const stored = force ? null : readStoredRelayerSession();
+    const stored = force ? null : readRelayerSession();
     if (stored?.address.toLowerCase() === address.toLowerCase()) {
       setSession(stored);
       return stored.accessToken;

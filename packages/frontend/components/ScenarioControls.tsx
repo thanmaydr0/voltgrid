@@ -3,6 +3,7 @@
 import type { Scenario } from "@/lib/fixture";
 import { scenarioLabel } from "@/lib/fixture";
 import { StatusBadge } from "@/components/StatusBadge";
+import { ObservationInputPanel } from "@/components/ObservationInputPanel";
 
 const SCENARIOS: Scenario[] = ["sunny", "rainy", "heatwave"];
 
@@ -64,6 +65,7 @@ export function ScenarioControls({
         <span>Model my EV charging from 17:00 onwards</span>
         <small>assumption</small>
       </label>
+      <ObservationInputPanel onUseScenario={setScenario} locked={locked} />
       <div className="day-progress" aria-label={`Modelled hour ${hour} of 24`}>
         <div className="progress-meta"><span>Hour {String(hour).padStart(2, "0")} / 24</span><span>Preview only</span></div>
         <div className="progress-track"><span style={{ width: `${(hour / 24) * 100}%` }} /></div>
