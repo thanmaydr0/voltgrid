@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { NetworkWarning } from "@/components/NetworkWarning";
+import { SolarCertificateEvidenceNotice } from "@/components/house/SolarCertificateEvidenceNotice";
 import { parseDaySnapshot, parseHouseSnapshot } from "./registration";
 import { mstTestnet } from "@/lib/chains";
 import { contractAddresses } from "@/lib/addresses";
@@ -89,6 +90,7 @@ export function HouseStatusFeature() {
               </div>
             ) : <p className="rounded-md border border-border p-3 text-sm">This account is not registered in the readable market state.</p>}
           </ReadState>}
+          {address && !house.isLoading && !house.isError && houseSnapshot?.exists && houseSnapshot.hasSolar && <SolarCertificateEvidenceNotice compact />}
           {isTreasury && <p className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm">This connected account equals the market treasury. The contract cannot register the treasury as a household. Connect a different wallet.</p>}
         </CardContent>
       </Card>

@@ -8,17 +8,18 @@ import { EmergencyPanel } from "@/components/EmergencyPanel";
 import { EpochTimeline } from "@/components/EpochTimeline";
 import { NetworkSwitcher } from "@/components/NetworkSwitcher";
 import { PriceChart } from "@/components/PriceChart";
-import { ScenarioControls } from "@/components/ScenarioControls";
 import { StatusBadge } from "@/components/StatusBadge";
 import { TxFeed } from "@/components/TxFeed";
 import { useAppServices } from "@/lib/services/provider";
 import { makeSimulationSnapshot } from "@/lib/simulation";
-import { makePriceSeries } from "@/lib/fixture";
 import { mstTestnet } from "@/lib/chains";
-import { advanceEpoch, closeDay, createDay, getCurrentDay, getDay, RelayerRequestError, type Scenario } from "@/lib/relayer";
+import { advanceEpoch, closeDay, createDay, getCurrentDay, getDay, RelayerRequestError } from "@/lib/relayer";
 import { useRelayerSession } from "@/hooks/useRelayerSession";
 import { applyOutcome, closeRequestId, epochRequestId, stateFromDayResponse, type PlayDayState } from "@/app/domain/route-models";
 import { inspectLegacyDays, reconcileLegacyDay, type LegacyDayInspection } from "@/lib/legacy-day-migration";
+import { automaticDailyProfile } from "./daily-profile";
+import { HourlyModelTable, WeatherModelCard } from "./weather-model-card";
+import { PlayDayControls } from "./play-day-controls";
 
 type PageStatus = "idle" | "loading" | "ready" | "session-needed" | "empty" | "error";
 
@@ -41,8 +42,7 @@ export function PlayView() {
   const { address, chainId } = useAccount();
   const { session, authenticate, withSession, logout, isAuthenticating, error: authError } = useRelayerSession();
   const services = useAppServices();
-  const [scenario, setScenario] = useState<Scenario>("sunny");
-  const [seed, setSeed] = useState("demo-seed");
+  const [dailyProfile, setDailyProfile] = useState<ReturnType<typeof automaticDailyProfile> | null>(null);
   const [hour, setHour] = useState(7);
   const [viewerEvCharging, setViewerEvCharging] = useState(false);
   const [state, setState] = useState<PlayDayState | null>(null);
@@ -57,12 +57,12 @@ export function PlayView() {
   const processing = useRef(false);
 
   const activeDay = state?.day.status === "active" || state?.day.status === "starting" ? state.day : null;
-  const selectedScenario = activeDay?.scenario ?? scenario;
-  const selectedSeed = activeDay?.seed ?? seed;
+  const selectedScenario = activeDay?.scenario ?? dailyProfile?.scenario ?? "sunny";
+  const selectedSeed = activeDay?.seed ?? dailyProfile?.seed ?? "profile-initializing";
   const selectedEvCharging = activeDay?.viewerEvCharging ?? viewerEvCharging;
   const activeEpoch = activeDay?.nextEpoch ?? hour;
-  const snapshot = useMemo(() => makeSimulationSnapshot(selectedScenario, selectedSeed, Math.min(activeEpoch, 23), selectedEvCharging, address), [activeEpoch, address, selectedScenario, selectedEvCharging, selectedSeed]);
-  const previewPriceSeries = useMemo(() => makePriceSeries(selectedScenario, selectedSeed, selectedEvCharging, address), [address, selectedScenario, selectedEvCharging, selectedSeed]);
+  const hourlySnapshots = useMemo(() => Array.from({ length: 24 }, (_, epochIndex) => makeSimulationSnapshot(selectedScenario, selectedSeed, epochIndex, selectedEvCharging, address)), [address, selectedScenario, selectedEvCharging, selectedSeed]);
+  const snapshot = hourlySnapshots[Math.min(activeEpoch, 23)];
   const emergencyOutcome = state?.outcomes.find((outcome) => outcome.epochIndex === activeEpoch && outcome.kind === "emergency")
     ?? state?.outcomes.filter((outcome) => outcome.kind === "emergency").slice(-1)[0];
   const feedOutcomes = useMemo(() => state?.outcomes.map((outcome) => ({
@@ -101,8 +101,6 @@ export function PlayView() {
     }
     setState(next);
     setPageStatus("ready");
-    setScenario(next.day.scenario);
-    setSeed(next.day.seed);
     setViewerEvCharging(next.day.viewerEvCharging);
     return next;
   }, [services.data]);
@@ -125,6 +123,16 @@ export function PlayView() {
       setPageStatus(cause instanceof RelayerRequestError && cause.status === 401 ? "session-needed" : "error");
     }
   }, [address, logout, readCurrent, session?.accessToken]);
+
+  useEffect(() => {
+    const updateProfileForToday = () => {
+      const next = automaticDailyProfile(new Date());
+      setDailyProfile((current) => current?.dayKey === next.dayKey ? current : next);
+    };
+    updateProfileForToday();
+    const timer = window.setInterval(updateProfileForToday, 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     if (session?.accessToken && address) void refresh();
@@ -160,6 +168,10 @@ export function PlayView() {
       setError(`Wrong network: switch to MST Testnet (${mstTestnet.id}) before signing.`);
       return;
     }
+    if (!activeDay && !dailyProfile) {
+      setError("Today’s automatic model profile is still being prepared. Try again in a moment.");
+      return;
+    }
     setLiveBusy(true);
     try {
       const next = await withSession(async (token) => {
@@ -177,7 +189,7 @@ export function PlayView() {
           }
           return currentState;
         }
-        const created = await createDay({ clientRunId: requestId(), scenario, seed, viewerEvCharging }, token);
+        const created = await createDay({ clientRunId: requestId(), scenario: dailyProfile!.scenario, seed: dailyProfile!.seed, viewerEvCharging }, token);
         if (created.status !== "confirmed") {
           setError("Day start is pending or unknown. Press the same action again to reconcile; no epoch was submitted.");
           return null;
@@ -187,8 +199,6 @@ export function PlayView() {
       if (!next) return;
       setState(next);
       setPageStatus("ready");
-      setScenario(next.day.scenario);
-      setSeed(next.day.seed);
       setViewerEvCharging(next.day.viewerEvCharging);
       await saveReference(next);
       if (next.day.status === "active" && next.day.nextEpoch < 24) setLivePlaying(true);
@@ -198,7 +208,7 @@ export function PlayView() {
     } finally {
       setLiveBusy(false);
     }
-  }, [address, chainId, readCurrent, scenario, seed, saveReference, viewerEvCharging, withSession]);
+  }, [activeDay, address, chainId, dailyProfile, readCurrent, saveReference, viewerEvCharging, withSession]);
 
   const restoreLegacy = useCallback(async () => {
     const candidate = legacyInspection?.candidates[0];
@@ -224,8 +234,6 @@ export function PlayView() {
       const next = stateFromDayResponse(result.response);
       setState(next);
       setPageStatus("ready");
-      setScenario(next.day.scenario);
-      setSeed(next.day.seed);
       setViewerEvCharging(next.day.viewerEvCharging);
       setLegacyInspection(inspectLegacyDays(window.localStorage));
       setServiceNotice(null);
@@ -312,7 +320,7 @@ export function PlayView() {
       </section>}
 
       <section className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(340px,.9fr)]">
-        <ScenarioControls scenario={selectedScenario} setScenario={(value) => { if (!activeDay) { setScenario(value); setHour(7); setPreviewPlaying(false); } }} seed={selectedSeed} setSeed={(value) => { if (!activeDay) setSeed(value); }} hour={activeEpoch} isPlaying={previewPlaying} onPlay={() => setPreviewPlaying((current) => !current)} onReset={() => { setPreviewPlaying(false); setHour(7); }} viewerEvCharging={selectedEvCharging} setViewerEvCharging={(value) => { if (!activeDay) setViewerEvCharging(value); }} onStartReal={() => void startOrResume()} liveStatus={status} liveBusy={liveBusy || isAuthenticating} locked={Boolean(activeDay)} />
+        <PlayDayControls profile={dailyProfile} activeScenario={selectedScenario} activeDay={Boolean(activeDay)} hour={activeEpoch} isPlaying={previewPlaying} onPlay={() => setPreviewPlaying((current) => !current)} onReset={() => { setPreviewPlaying(false); setHour(7); }} viewerEvCharging={selectedEvCharging} setViewerEvCharging={setViewerEvCharging} onStartReal={() => void startOrResume()} liveStatus={status} liveBusy={liveBusy || isAuthenticating} />
         <section className="card" aria-labelledby="day-contract-title">
           <div className="card-heading"><div><p className="eyebrow">Receipt contract</p><h2 id="day-contract-title">One state machine, 24 outcomes</h2></div><StatusBadge status={state ? "submitted / pending" : "unavailable"} /></div>
           <p className="card-copy">The relayer/chain owns real-day status. This page keeps a stable request ID per day/epoch, reconciles current state on refresh, and never promotes pending, reverted, or unknown data to settled.</p>
@@ -322,8 +330,10 @@ export function PlayView() {
         </section>
       </section>
 
-      <div className="mt-4 grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(340px,.9fr)]"><PriceChart scenario={selectedScenario} seed={selectedSeed} activeHour={activeEpoch} viewerEvCharging={selectedEvCharging} viewerAddress={address} /><EmergencyPanel proposed={snapshot.proposedEmergency} proposedTargetWh={snapshot.output.proposedTargetWh} outcome={emergencyOutcome} batteryState={snapshot.output.batteryState} explorerUrl={mstTestnet.blockExplorers.default.url} /></div>
-      <details className="card mt-4"><summary className="cursor-pointer text-sm font-semibold text-[var(--mint)]">Show a readable preview price table</summary><div className="mt-3 overflow-x-auto"><table className="w-full min-w-[28rem] border-collapse text-left text-xs"><thead><tr className="text-[var(--ink-faint)]"><th className="border-b border-[var(--line)] p-2">Hour</th><th className="border-b border-[var(--line)] p-2">Model price</th><th className="border-b border-[var(--line)] p-2">Source</th></tr></thead><tbody>{[0, 6, 12, 18, 23].map((index) => <tr key={index}><td className="border-b border-[var(--line)] p-2">{String(index).padStart(2, "0")}</td><td className="border-b border-[var(--line)] p-2">{previewPriceSeries[index] === null ? "No P2P trade" : `₹${previewPriceSeries[index]!.toFixed(2)} / kWh`}</td><td className="border-b border-[var(--line)] p-2 text-[var(--gold)]">preview / sim-core</td></tr>)}</tbody></table></div><p className="assumption">This table is an alternative to the preview chart; it does not describe confirmed settlement.</p></details>
+      {activeDay || dailyProfile ? <>
+        <div className="mt-4 grid min-w-0 gap-4 xl:grid-cols-3"><PriceChart scenario={selectedScenario} seed={selectedSeed} activeHour={activeEpoch} viewerEvCharging={selectedEvCharging} viewerAddress={address} /><WeatherModelCard snapshot={snapshot} scenario={selectedScenario} /><EmergencyPanel proposed={snapshot.proposedEmergency} proposedTargetWh={snapshot.output.proposedTargetWh} outcome={emergencyOutcome} batteryState={snapshot.output.batteryState} explorerUrl={mstTestnet.blockExplorers.default.url} /></div>
+        <HourlyModelTable snapshots={hourlySnapshots} />
+      </> : <section className="card mt-4" role="status" aria-live="polite"><p className="eyebrow">Preview setup</p><h2>Preparing the automatic daily model</h2><p className="card-copy">Weather and price values will appear after the browser-local day profile is assigned. No placeholder measurements are shown.</p></section>}
       <div className="mt-4"><EpochTimeline outcomes={state?.outcomes ?? []} nextEpoch={state?.day.nextEpoch ?? hour} live={Boolean(state)} /></div>
       {state && <div className="mt-4"><TxFeed outcomes={feedOutcomes} explorerUrl={mstTestnet.blockExplorers.default.url} chainId={state.chainId} /></div>}
       {state?.day.nextEpoch === 24 && state.day.status === "active" && <div className="close-day-row"><button className="button button-primary" onClick={() => void closeCompletedDay()} disabled={liveBusy}>Close day after 24 confirmed epochs</button><span>Close uses the same deterministic request ID on retry and returns certificate evidence only after its receipt is confirmed.</span></div>}

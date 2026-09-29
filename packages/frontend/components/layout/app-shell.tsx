@@ -8,6 +8,7 @@ import {
   AlertTriangle,
   ArrowLeftRight,
   Award,
+  BarChart3,
   LayoutDashboard,
   MoreHorizontal,
   Settings,
@@ -30,6 +31,7 @@ const primaryNavigation = [
 ] as const;
 
 const moreNavigation = [
+  { href: "/trade", label: "VLT trade", Icon: BarChart3 },
   { href: "/emergency", label: "Grid emergency", Icon: AlertTriangle },
   { href: "/certificates", label: "Solar records", Icon: Award },
   { href: "/activity", label: "Activity", Icon: Activity },
