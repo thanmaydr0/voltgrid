@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useAccount } from "wagmi";
 import { StatusBadge } from "@/components/StatusBadge";
+import { BentoGrid } from "@/components/ui/bento-grid";
 import { useReceiptDay } from "@/app/domain/use-receipt-day";
 import { makeSimulationSnapshot } from "@/lib/simulation";
 import { mstTestnet } from "@/lib/chains";
@@ -42,7 +43,8 @@ export function OverviewView() {
         <Link className="button button-primary inline-block no-underline" href={address ? "/play" : "/play#connect-wallet"}>{address ? "Open Play" : "Explore Play"}</Link>
       </section>
 
-      <section className="grid min-w-0 gap-4 md:grid-cols-2" aria-label="Neighbourhood overview cards">
+      <section aria-label="Neighbourhood overview cards">
+        <BentoGrid>
         <article className="card !p-4 sm:!p-5">
           <div className="card-heading"><div><p className="eyebrow">Scenario / day status</p><h2>Modelled day</h2></div><StatusBadge status="preview simulation" /></div>
           <p className="mb-4 text-sm leading-6 text-[var(--ink-soft)]">{day.state ? `${day.state.day.scenario} · ${day.state.day.nextEpoch}/24 epochs reached` : "Sunny preview · epoch 07"}</p>
@@ -75,6 +77,7 @@ export function OverviewView() {
             <p className="assumption">Confirmed receipt returned by the relayer. Preview events never appear here.</p>
           </> : <p className="mb-0 text-sm leading-6 text-[var(--ink-faint)]">No confirmed event is available for this wallet session. Start or resume a day in Play to create receipt-backed activity.</p>}
         </article>
+        </BentoGrid>
       </section>
 
       <section className="card mt-4 !p-4 sm:!p-5" aria-labelledby="overview-state-title">
