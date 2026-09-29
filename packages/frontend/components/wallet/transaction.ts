@@ -8,7 +8,7 @@ export type WalletTransactionStage =
   | "reverted"
   | "error";
 
-export type WalletTransactionKind = "faucet" | "approve" | "deposit" | "withdraw" | "battery-opt-in";
+export type WalletTransactionKind = "faucet" | "approve" | "deposit" | "withdraw" | "battery-opt-in" | "transfer";
 
 export interface WalletTransactionState {
   readonly kind: WalletTransactionKind;

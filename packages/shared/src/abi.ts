@@ -47,6 +47,13 @@ export const VOLT_TOKEN_ABI = [
     outputs: [{ name: "", type: "string" }],
   },
   {
+    type: "function",
+    name: "transfer",
+    stateMutability: "nonpayable",
+    inputs: [{ name: "to", type: "address" }, { name: "amount", type: "uint256" }],
+    outputs: [{ name: "", type: "bool" }],
+  },
+  {
     type: "event",
     name: "FaucetClaimed",
     anonymous: false,
@@ -54,6 +61,16 @@ export const VOLT_TOKEN_ABI = [
       { indexed: true, name: "account", type: "address" },
       { indexed: false, name: "amountWei", type: "uint256" },
       { indexed: false, name: "nextAvailableAt", type: "uint256" },
+    ],
+  },
+  {
+    type: "event",
+    name: "Transfer",
+    anonymous: false,
+    inputs: [
+      { indexed: true, name: "from", type: "address" },
+      { indexed: true, name: "to", type: "address" },
+      { indexed: false, name: "value", type: "uint256" },
     ],
   },
 ] as const;
